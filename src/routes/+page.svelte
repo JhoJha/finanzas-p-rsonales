@@ -1,80 +1,126 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
-	import { ArrowDown, ArrowUp, DollarSign, Wallet } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp } from '@lucide/svelte';
+	import Chart from '$lib/components/Chart.svelte';
+	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 
 	let summary = $derived(financeStore.summary);
+
+	// Datos para gráfico pastel de gastos
+	let expensesByCategory = $derived(financeStore.getExpensesByCategory('all'));
+
+	let pieLabels = $derived(expensesByCategory.map((c) => c.name));
+	let pieData = $derived(expensesByCategory.map((c) => c.amount));
+	let pieColors = $derived(
+		expensesByCategory.map((c) => {
+			const colorMap: Record<string, string> = {
+				'orange-500': '#f97316',
+				'blue-500': '#3b82f6',
+				'green-500': '#22c55e',
+				'purple-500': '#a855f7',
+				'pink-500': '#ec4899',
+				'yellow-500': '#eab308',
+				'gray-500': '#6b7280',
+				'red-500': '#ef4444'
+			};
+			// Extraer el color del string 'bg-xxx'
+			for (const [key, val] of Object.entries(colorMap)) {
+				if (c.color.includes(key)) return val;
+			}
+			return '#6b7280';
+		})
+	);
+
+	// Últimas 5 transacciones
+	let recentTransactions = $derived([...financeStore.transactions].reverse().slice(0, 5));
+
+	let hasExpenses = $derived(summary.expenses > 0);
 </script>
 
-<div class="space-y-6">
+<div class="animate-fade-in-up space-y-5">
 	<!-- Main Balance -->
-	<div class="flex flex-col items-center justify-center rounded-2xl bg-white p-6 shadow-sm">
-		<span class="text-sm text-gray-500">Saldo Total</span>
-		<span class="text-4xl font-bold {summary.balance >= 0 ? 'text-green-600' : 'text-red-600'}">
+	<div
+		class="flex flex-col items-center justify-center rounded-2xl p-6 shadow-sm"
+		style="background-color: var(--color-surface);"
+	>
+		<span class="text-sm font-medium" style="color: var(--color-text-secondary);">Saldo Total</span>
+		<span
+			class="text-4xl font-bold"
+			style="color: {summary.balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};"
+		>
 			S/ {summary.balance.toFixed(2)}
 		</span>
 	</div>
 
 	<!-- Stats Grid -->
 	<div class="grid grid-cols-2 gap-4">
-		<!-- Income -->
-		<div class="rounded-2xl bg-white p-4 shadow-sm">
+		<div class="rounded-2xl p-4 shadow-sm" style="background-color: var(--color-surface);">
 			<div class="mb-2 flex items-center justify-between">
-				<div class="rounded-full bg-green-100 p-2 text-green-600">
+				<div class="rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-success) 20%, transparent); color: var(--color-success);">
 					<ArrowUp size={20} />
 				</div>
 			</div>
-			<span class="text-xs text-gray-500">Ingresos</span>
-			<div class="text-lg font-bold text-gray-900">S/ {summary.income.toFixed(2)}</div>
+			<span class="text-xs font-medium" style="color: var(--color-text-secondary);">Ingresos</span>
+			<div class="text-lg font-bold" style="color: var(--color-text);">S/ {summary.income.toFixed(2)}</div>
 		</div>
 
-		<!-- Expenses -->
-		<div class="rounded-2xl bg-white p-4 shadow-sm">
+		<div class="rounded-2xl p-4 shadow-sm" style="background-color: var(--color-surface);">
 			<div class="mb-2 flex items-center justify-between">
-				<div class="rounded-full bg-red-100 p-2 text-red-600">
+				<div class="rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-danger) 20%, transparent); color: var(--color-danger);">
 					<ArrowDown size={20} />
 				</div>
 			</div>
-			<span class="text-xs text-gray-500">Gastos</span>
-			<div class="text-lg font-bold text-gray-900">S/ {summary.expenses.toFixed(2)}</div>
+			<span class="text-xs font-medium" style="color: var(--color-text-secondary);">Gastos</span>
+			<div class="text-lg font-bold" style="color: var(--color-text);">S/ {summary.expenses.toFixed(2)}</div>
 		</div>
 	</div>
 
+	<!-- Gráfico de gastos por categoría -->
+	{#if hasExpenses}
+		<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
+			<h2 class="mb-4 flex items-center gap-2 text-lg font-semibold" style="color: var(--color-text);">
+				<TrendingUp size={20} style="color: var(--color-primary);" />
+				Gastos por categoría
+			</h2>
+			<Chart
+				type="doughnut"
+				labels={pieLabels}
+				datasets={[
+					{
+						label: 'Gastos',
+						data: pieData,
+						backgroundColor: pieColors
+					}
+				]}
+				height={240}
+			/>
+		</div>
+	{/if}
+
 	<!-- Savings Card -->
-	<div class="rounded-2xl bg-blue-600 p-5 text-white shadow-sm">
+	<div
+		class="rounded-2xl p-5 shadow-sm text-white"
+		style="background: var(--gradient-header);"
+	>
 		<div class="mb-2 flex items-center justify-between">
 			<span class="text-sm opacity-90">Ahorro Actual</span>
-			<div class="rounded-full bg-blue-500 p-2">
-				<Wallet size={20} />
+			<div class="rounded-full p-2" style="background-color: rgba(255,255,255,0.2);">
+				<PiggyBank size={20} />
 			</div>
 		</div>
 		<div class="text-2xl font-bold">S/ {summary.savings.toFixed(2)}</div>
-		<p class="mt-4 text-xs opacity-75">Tus metas de "Guardadito" van en progreso.</p>
+		<p class="mt-1 text-xs opacity-75">
+			{financeStore.goals.length > 0
+				? `${financeStore.goals.length} meta${financeStore.goals.length > 1 ? 's' : ''} de ahorro activa${financeStore.goals.length > 1 ? 's' : ''}`
+				: 'Crea tu primera meta en "Guardadito"'}
+		</p>
 	</div>
 
 	<!-- Recent Transactions -->
-	<div class="rounded-2xl bg-white p-5 shadow-sm">
-		<h2 class="mb-4 text-lg font-semibold text-gray-900">Actividad Reciente</h2>
-		{#if financeStore.transactions.length === 0}
-			<p class="text-center text-sm text-gray-500 py-4">No hay transacciones aún.</p>
-		{:else}
-			<div class="space-y-4">
-				{#each [...financeStore.transactions].reverse().slice(0, 5) as t (t.id)}
-					<div class="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-						<div class="flex items-center space-x-3">
-							<div class={`flex h-10 w-10 items-center justify-center rounded-full text-white bg-gray-500`}>
-								<DollarSign size={18} />
-							</div>
-							<div>
-								<p class="font-medium text-gray-900">{t.note || 'Sin nota'}</p>
-								<p class="text-xs text-gray-500">{new Date(t.date).toLocaleDateString()}</p>
-							</div>
-						</div>
-						<span class="font-semibold {t.type === 'income' ? 'text-green-600' : 'text-red-600'}">
-							{t.type === 'income' ? '+' : '-'}S/ {t.amount.toFixed(2)}
-						</span>
-					</div>
-				{/each}
-			</div>
-		{/if}
+	<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
+		<h2 class="mb-4 text-lg font-semibold" style="color: var(--color-text);">
+			Actividad Reciente
+		</h2>
+		<TransactionHistory transactions={recentTransactions} />
 	</div>
 </div>

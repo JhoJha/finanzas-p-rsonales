@@ -1,15 +1,34 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import type { Goal } from '$lib/schema';
-	import { Plus, Target, CheckCircle2 } from '@lucide/svelte';
+	import { Plus, Target, CheckCircle2, Trash2, Download, Upload, PiggyBank } from '@lucide/svelte';
+	import Toast from '$lib/components/Toast.svelte';
 
-	let showingNewGoal = $state(false);
+		let showingNewGoal = $state(false);
 	let newGoalName = $state('');
 	let newGoalAmount = $state('');
 
+	// Modal para abonar
+	let abonarGoalId = $state<string | null>(null);
+	let abonarAmount = $state('');
+
+	// Toast
+	let toastMessage = $state('');
+	let toastType = $state<'success' | 'error' | 'info'>('success');
+	let showToast = $state(false);
+
+	function showToastMsg(msg: string, type: 'success' | 'error' | 'info' = 'success') {
+		toastMessage = msg;
+		toastType = type;
+		showToast = true;
+	}
+
 	function saveGoal() {
-		if (!newGoalName || !newGoalAmount || isNaN(parseFloat(newGoalAmount))) return;
-		
+		if (!newGoalName || !newGoalAmount || isNaN(parseFloat(newGoalAmount))) {
+			showToastMsg('Completa todos los campos', 'error');
+			return;
+		}
+
 		const goal: Goal = {
 			id: crypto.randomUUID(),
 			name: newGoalName,
@@ -17,59 +36,106 @@
 			currentAmount: 0
 		};
 		financeStore.addGoal(goal);
-		
+
 		showingNewGoal = false;
 		newGoalName = '';
 		newGoalAmount = '';
+		showToastMsg(`🎯 Meta "${goal.name}" creada`);
 	}
-	
-	function addSavings(id: string) {
-		const amount = prompt('¿Cuánto quieres transferir a este objetivo?');
-		if (amount && !isNaN(parseFloat(amount))) {
-			financeStore.updateGoalProgress(id, parseFloat(amount));
-			
-			// Si agregamos al ahorro, deberíamos restarlo del balance global agregando un gasto de transferencia
-			financeStore.addTransaction({
-				id: crypto.randomUUID(),
-				date: new Date().toISOString(),
-				amount: parseFloat(amount),
-				categoryId: 'transfer', // This would need special handling, but for now we skip or just add note
-				type: 'expense',
-				note: `Transferencia a ahorro: ${financeStore.goals.find(g => g.id === id)?.name}`
-			});
+
+	function openAbonar(goalId: string) {
+		abonarGoalId = goalId;
+		abonarAmount = '';
+	}
+
+	function confirmAddSavings() {
+		if (!abonarGoalId || !abonarAmount || isNaN(parseFloat(abonarAmount))) return;
+
+		const amount = parseFloat(abonarAmount);
+		financeStore.updateGoalProgress(abonarGoalId, amount);
+
+		// Registrar como gasto de transferencia
+		const goalName = financeStore.goals.find((g) => g.id === abonarGoalId)?.name;
+		financeStore.addTransaction({
+			id: crypto.randomUUID(),
+			date: new Date().toISOString(),
+			amount,
+			categoryId: 'transfer',
+			type: 'expense',
+			note: `Transferencia a ahorro: ${goalName}`
+		});
+
+		abonarGoalId = null;
+		abonarAmount = '';
+		showToastMsg(`💰 S/ ${amount.toFixed(2)} transferidos a ${goalName}`);
+	}
+
+	function deleteGoal(id: string) {
+		if (confirm('¿Eliminar esta meta de ahorro?')) {
+			financeStore.deleteGoal(id);
+			showToastMsg('Meta eliminada');
 		}
+	}
+
+	function exportData() {
+		const json = financeStore.exportToJSON();
+		const blob = new Blob([json], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `finanzas_backup_${new Date().toISOString().split('T')[0]}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+		showToastMsg('📦 Backup exportado correctamente');
+	}
+
+	function importData() {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = '.json';
+		input.onchange = async (e: any) => {
+			const file = e.target?.files?.[0];
+			if (!file) return;
+			const text = await file.text();
+			if (financeStore.importFromJSON(text)) {
+				showToastMsg('📦 Datos importados correctamente');
+			} else {
+				showToastMsg('❌ Archivo inválido', 'error');
+			}
+		};
+		input.click();
 	}
 </script>
 
-<div class="space-y-6">
+<div class="animate-fade-in-up space-y-6">
 	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-900">Guardadito</h1>
-		<button onclick={() => showingNewGoal = !showingNewGoal} class="rounded-full bg-blue-100 p-2 text-blue-600">
+		<h1 class="text-2xl font-bold" style="color: var(--color-text);">Guardadito</h1>
+		<button onclick={() => showingNewGoal = !showingNewGoal} class="flex h-10 w-10 items-center justify-center rounded-full transition-all active:scale-90" style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);">
 			<Plus size={24} />
 		</button>
 	</div>
 
 	{#if showingNewGoal}
-		<div class="rounded-2xl bg-white p-5 shadow-inner border border-blue-100">
-			<h2 class="mb-3 font-semibold text-gray-800">Nueva Meta</h2>
-			<div class="space-y-3">
-				<input type="text" bind:value={newGoalName} placeholder="Ej. Viaje, Laptop nueva" class="w-full rounded-lg border p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
-				<input type="number" bind:value={newGoalAmount} placeholder="Monto objetivo (S/)" class="w-full rounded-lg border p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
-				<div class="flex gap-2">
-					<button onclick={() => showingNewGoal = false} class="flex-1 rounded-lg bg-gray-100 py-3 text-sm font-semibold text-gray-600">Cancelar</button>
-					<button onclick={saveGoal} class="flex-1 rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white">Crear</button>
+			<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+				<h2 class="mb-3 font-semibold" style="color: var(--color-text);">Nueva Meta</h2>
+				<div class="space-y-3">
+					<input type="text" bind:value={newGoalName} placeholder="Ej. Viaje, Laptop nueva" class="w-full rounded-xl p-3 text-sm outline-none transition-all" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"/>
+					<input type="number" bind:value={newGoalAmount} placeholder="Monto objetivo (S/)" class="w-full rounded-xl p-3 text-sm outline-none transition-all" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"/>
+					<div class="flex gap-2">
+						<button onclick={() => showingNewGoal = false} class="flex-1 rounded-xl py-3 text-sm font-semibold transition-all active:scale-95" style="background-color: var(--color-bg); color: var(--color-text-secondary);">Cancelar</button>
+						<button onclick={saveGoal} class="flex-1 rounded-xl py-3 text-sm font-semibold text-white transition-all active:scale-95" style="background-color: var(--color-primary);">Crear</button>
+					</div>
 				</div>
 			</div>
-		</div>
 	{/if}
 
 	<div class="space-y-4">
 		{#if financeStore.goals.length === 0}
-			<div class="rounded-2xl bg-white p-8 text-center text-gray-500 shadow-sm">
-				<Target size={48} class="mx-auto mb-4 opacity-50" />
-				<p>Aún no tienes metas de ahorro.</p>
-				<p class="text-xs mt-2">Usa el botón + para crear tu primer "Guardadito".</p>
-			</div>
+					<div class="rounded-2xl p-8 text-center shadow-sm" style="background-color: var(--color-surface); color: var(--color-text-secondary);">
+						<Target size={48} class="mx-auto mb-4 opacity-50" />
+						<p class="font-medium">Aún no tienes metas de ahorro.</p>
+						<p class="mt-2 text-xs">Usa el botón + para crear tu primer "Guardadito".</p>
+					</div>
 		{:else}
 			{#each financeStore.goals as goal}
 				{@const percent = Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))}

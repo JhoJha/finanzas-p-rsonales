@@ -1,1 +1,214 @@
 @import 'tailwindcss';
+
+/* ============================================
+   🎨 TEMAS - Variables CSS personalizadas
+   ============================================ */
+
+/* Tema por defecto: Océano (Azul) */
+:root,
+[data-theme="ocean"] {
+	--color-primary: #2563eb;
+	--color-primary-light: #3b82f6;
+	--color-primary-bg: #eff6ff;
+	--color-primary-dark: #1d4ed8;
+	--color-accent: #f59e0b;
+	--color-bg: #f3f4f6;
+	--color-surface: #ffffff;
+	--color-text: #111827;
+	--color-text-secondary: #6b7280;
+	--color-border: #e5e7eb;
+	--color-header-bg: #2563eb;
+	--color-header-text: #ffffff;
+	--color-nav-bg: #ffffff;
+	--color-success: #16a34a;
+	--color-danger: #dc2626;
+	--color-warning: #f59e0b;
+	--gradient-header: linear-gradient(135deg, #2563eb, #3b82f6);
+}
+
+[data-theme="nature"] {
+	--color-primary: #16a34a;
+	--color-primary-light: #22c55e;
+	--color-primary-bg: #f0fdf4;
+	--color-primary-dark: #15803d;
+	--color-accent: #eab308;
+	--color-bg: #f0fdf4;
+	--color-surface: #ffffff;
+	--color-text: #111827;
+	--color-text-secondary: #6b7280;
+	--color-border: #e5e7eb;
+	--color-header-bg: #16a34a;
+	--color-header-text: #ffffff;
+	--color-nav-bg: #ffffff;
+	--color-success: #16a34a;
+	--color-danger: #dc2626;
+	--color-warning: #f59e0b;
+	--gradient-header: linear-gradient(135deg, #16a34a, #22c55e);
+}
+
+[data-theme="rose"] {
+	--color-primary: #db2777;
+	--color-primary-light: #ec4899;
+	--color-primary-bg: #fdf2f8;
+	--color-primary-dark: #be185d;
+	--color-accent: #f43f5e;
+	--color-bg: #fdf2f8;
+	--color-surface: #ffffff;
+	--color-text: #111827;
+	--color-text-secondary: #6b7280;
+	--color-border: #e5e7eb;
+	--color-header-bg: #db2777;
+	--color-header-text: #ffffff;
+	--color-nav-bg: #ffffff;
+	--color-success: #16a34a;
+	--color-danger: #dc2626;
+	--color-warning: #f59e0b;
+	--gradient-header: linear-gradient(135deg, #db2777, #ec4899);
+}
+
+[data-theme="purple"] {
+	--color-primary: #7c3aed;
+	--color-primary-light: #8b5cf6;
+	--color-primary-bg: #f5f3ff;
+	--color-primary-dark: #6d28d9;
+	--color-accent: #a855f7;
+	--color-bg: #f5f3ff;
+	--color-surface: #ffffff;
+	--color-text: #111827;
+	--color-text-secondary: #6b7280;
+	--color-border: #e5e7eb;
+	--color-header-bg: #7c3aed;
+	--color-header-text: #ffffff;
+	--color-nav-bg: #ffffff;
+	--color-success: #16a34a;
+	--color-danger: #dc2626;
+	--color-warning: #f59e0b;
+	--gradient-header: linear-gradient(135deg, #7c3aed, #8b5cf6);
+}
+
+[data-theme="sunset"] {
+	--color-primary: #ea580c;
+	--color-primary-light: #f97316;
+	--color-primary-bg: #fff7ed;
+	--color-primary-dark: #c2410c;
+	--color-accent: #f59e0b;
+	--color-bg: #fff7ed;
+	--color-surface: #ffffff;
+	--color-text: #111827;
+	--color-text-secondary: #6b7280;
+	--color-border: #e5e7eb;
+	--color-header-bg: #ea580c;
+	--color-header-text: #ffffff;
+	--color-nav-bg: #ffffff;
+	--color-success: #16a34a;
+	--color-danger: #dc2626;
+	--color-warning: #f59e0b;
+	--gradient-header: linear-gradient(135deg, #ea580c, #f97316);
+}
+
+[data-theme="dark"] {
+	--color-primary: #3b82f6;
+	--color-primary-light: #60a5fa;
+	--color-primary-bg: #1e293b;
+	--color-primary-dark: #2563eb;
+	--color-accent: #fbbf24;
+	--color-bg: #0f172a;
+	--color-surface: #1e293b;
+	--color-text: #f1f5f9;
+	--color-text-secondary: #94a3b8;
+	--color-border: #334155;
+	--color-header-bg: #0f172a;
+	--color-header-text: #f1f5f9;
+	--color-nav-bg: #1e293b;
+	--color-success: #22c55e;
+	--color-danger: #ef4444;
+	--color-warning: #fbbf24;
+	--gradient-header: linear-gradient(135deg, #0f172a, #1e293b);
+}
+
+/* ============================================
+   📱 ESTILOS GLOBALES
+   ============================================ */
+
+html {
+	scroll-behavior: smooth;
+	-webkit-tap-highlight-color: transparent;
+}
+
+body {
+	background-color: var(--color-bg);
+	color: var(--color-text);
+	font-family: 'Inter', system-ui, -apple-system, sans-serif;
+	transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbar delgada */
+::-webkit-scrollbar {
+	width: 4px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--color-text-secondary);
+	border-radius: 4px;
+}
+
+/* ============================================
+   🎬 ANIMACIONES
+   ============================================ */
+
+@keyframes fadeInUp {
+	from { opacity: 0; transform: translateY(10px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+	from { opacity: 0; transform: translateY(-20px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+	from { opacity: 0; transform: scale(0.9); }
+	to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes toastIn {
+	from { opacity: 0; transform: translateY(50px) scale(0.9); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastOut {
+	from { opacity: 1; transform: translateY(0) scale(1); }
+	to { opacity: 0; transform: translateY(50px) scale(0.9); }
+}
+
+.animate-fade-in-up {
+	animation: fadeInUp 0.3s ease-out;
+}
+
+.animate-slide-down {
+	animation: slideDown 0.3s ease-out;
+}
+
+.animate-scale-in {
+	animation: scaleIn 0.2s ease-out;
+}
+
+.animate-toast-in {
+	animation: toastIn 0.3s ease-out;
+}
+
+.animate-toast-out {
+	animation: toastOut 0.3s ease-out forwards;
+}
+
+.glass {
+	background: rgba(255, 255, 255, 0.7);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+}
+
+[data-theme="dark"] .glass {
+	background: rgba(30, 41, 59, 0.7);
+}
