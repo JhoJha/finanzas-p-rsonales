@@ -1,5 +1,5 @@
 <script lang="ts">
-	export type Period = 'all' | 'today' | 'week' | 'month' | 'year';
+	export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
 	let {
 		selected = 'all' as Period,
@@ -14,13 +14,22 @@
 		{ id: 'year', label: 'Este año' }
 	];
 
+	let customMonth = $state('');
+
 	function handleChange(period: Period) {
 		selected = period;
 		onChange(period);
 	}
+
+	function handleCustomMonth(e: Event) {
+		const val = (e.target as HTMLInputElement).value;
+		if (val) {
+			handleChange(val);
+		}
+	}
 </script>
 
-<div class="flex flex-wrap gap-2">
+<div class="flex flex-wrap items-center gap-2">
 	{#each periods as p}
 		<button
 			onclick={() => handleChange(p.id)}
@@ -33,4 +42,16 @@
 			{p.label}
 		</button>
 	{/each}
+	
+	<input 
+		type="month" 
+		bind:value={customMonth}
+		onchange={handleCustomMonth}
+		class="rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-all cursor-pointer"
+		style="
+			background-color: {typeof selected === 'string' && selected.includes('-') ? 'var(--color-primary)' : 'var(--color-bg)'};
+			color: {typeof selected === 'string' && selected.includes('-') ? 'white' : 'var(--color-text-secondary)'};
+			border: 1px solid var(--color-border);
+		"
+	/>
 </div>

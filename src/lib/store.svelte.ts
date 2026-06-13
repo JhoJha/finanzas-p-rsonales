@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 import { type Category, type Transaction, type Goal, defaultCategories } from './schema';
 
-export type Period = 'all' | 'today' | 'week' | 'month' | 'year';
+export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
 export class FinanceStore {
 	categories = $state<Category[]>(defaultCategories);
@@ -41,12 +41,23 @@ export class FinanceStore {
 		this.transactions = this.transactions.filter((t) => t.id !== id);
 	}
 
+	updateTransaction(id: string, data: Partial<Transaction>) {
+		const index = this.transactions.findIndex((t) => t.id === id);
+		if (index !== -1) {
+			this.transactions[index] = { ...this.transactions[index], ...data };
+		}
+	}
+
 	addGoal(goal: Goal) {
 		this.goals.push(goal);
 	}
 
 	deleteGoal(id: string) {
 		this.goals = this.goals.filter((g) => g.id !== id);
+	}
+
+	deleteCategory(id: string) {
+		this.categories = this.categories.filter((c) => c.id !== id);
 	}
 
 	updateGoalProgress(id: string, amount: number) {
@@ -80,6 +91,14 @@ export class FinanceStore {
 		const now = new Date();
 		const start = new Date();
 
+		if (typeof period === 'string' && period.includes('-')) {
+			const [year, month] = period.split('-').map(Number);
+			return this.transactions.filter((t) => {
+				const d = new Date(t.date);
+				return d.getFullYear() === year && d.getMonth() + 1 === month;
+			});
+		}
+
 		switch (period) {
 			case 'today':
 				start.setHours(0, 0, 0, 0);
@@ -103,7 +122,7 @@ export class FinanceStore {
 	/** Agrupar gastos por categoría para gráficos */
 	getExpensesByCategory(period: Period = 'all') {
 		const filtered = period === 'all' ? this.transactions : this.getTransactionsByPeriod(period);
-		const expenses = filtered.filter((t) => t.type === 'expense');
+		const expenses = filtered.filter((t) => t.type === 'expense' && t.categoryId !== 'transfer');
 
 		const grouped: Record<string, number> = {};
 		expenses.forEach((t) => {

@@ -196,21 +196,44 @@
 				</div>
 
 				{#if showNewCategory}
-					<div class="mt-2 animate-slide-down flex gap-2">
-						<input
-							type="text"
-							bind:value={newCatName}
-							placeholder="Nombre de la categoría"
-							class="flex-1 rounded-xl p-3 text-sm outline-none"
-							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
-						/>
-						<button
-							onclick={addCustomCategory}
-							class="rounded-xl px-4 text-sm font-semibold text-white transition-all active:scale-90"
-							style="background-color: var(--color-primary);"
-						>
-							Crear
-						</button>
+					<div class="mt-2 animate-slide-down rounded-xl p-4" style="background-color: var(--color-bg); border: 1px solid var(--color-border);">
+						<div class="mb-3 flex gap-2">
+							<input
+								type="text"
+								bind:value={newCatName}
+								placeholder="Nombre de la categoría"
+								class="flex-1 rounded-xl p-3 text-sm outline-none"
+								style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);"
+							/>
+							<button
+								onclick={addCustomCategory}
+								class="rounded-xl px-4 text-sm font-semibold text-white transition-all active:scale-90"
+								style="background-color: var(--color-primary);"
+							>
+								Crear
+							</button>
+						</div>
+
+						<!-- Categorías personalizadas -->
+						{#if categories.filter(c => c.type === type && c.id.length > 5).length > 0}
+							<div class="mt-4 border-t pt-3" style="border-color: var(--color-border);">
+								<p class="mb-2 text-xs font-semibold" style="color: var(--color-text-secondary);">Tus Categorías Personalizadas</p>
+								<div class="flex flex-wrap gap-2">
+									{#each categories.filter(c => c.type === type && c.id.length > 5) as cat}
+										<div class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+											<span style="color: var(--color-text);">{cat.name}</span>
+											<button 
+												onclick={() => financeStore.deleteCategory(cat.id)}
+												class="ml-1 flex h-4 w-4 items-center justify-center rounded-full text-red-500 hover:bg-red-100 transition-colors"
+												aria-label="Eliminar categoría"
+											>
+												<X size={12} />
+											</button>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>
