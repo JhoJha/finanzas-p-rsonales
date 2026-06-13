@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.svg';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
+	import ToastProvider from '$lib/components/ToastProvider.svelte';
 	import { themeStore } from '$lib/theme.svelte';
 
 	let { children } = $props();
@@ -18,6 +19,7 @@
 </svelte:head>
 
 <div class="flex h-screen flex-col" style="background-color: var(--color-bg); color: var(--color-text);">
+	<ToastProvider />
 	<!-- Header con gradiente -->
 	<header
 		class="relative p-4 pb-16 text-center shadow-lg"
@@ -49,8 +51,8 @@
 
 	<!-- Bottom Navigation -->
 	<nav
-		class="fixed bottom-0 left-0 right-0 z-50 flex justify-between border-t px-6 pb-6 pt-2 shadow-[0_-2px_10px_rgba(0,0,0,0.1)]"
-		style="background-color: var(--color-nav-bg); border-color: var(--color-border);"
+		class="fixed bottom-0 left-0 right-0 z-50 flex justify-between border-t px-6 pb-6 pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-colors"
+		style="background-color: {isDark ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)'}; border-color: var(--color-border);"
 	>
 		<a
 			href="/"

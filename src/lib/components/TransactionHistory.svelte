@@ -2,6 +2,8 @@
 	import { financeStore } from '$lib/store.svelte';
 	import { Trash2, DollarSign, ArrowUp, ArrowDown, Pencil, X, Save } from '@lucide/svelte';
 	import type { Transaction } from '$lib/schema';
+	import { toastStore } from '$lib/toast.svelte';
+	import { vibrate } from '$lib/utils/haptics';
 
 	let { transactions = [] as Transaction[] } = $props();
 
@@ -24,6 +26,8 @@
 	function confirmDelete(id: string) {
 		if (confirm('¿Eliminar esta transacción?')) {
 			financeStore.deleteTransaction(id);
+			vibrate([10, 30, 10]);
+			toastStore.add('Transacción eliminada', 'error');
 		}
 	}
 
@@ -42,6 +46,8 @@
 				note: editNote,
 				categoryId: editCategoryId
 			});
+			vibrate(15);
+			toastStore.add('Cambios guardados', 'success');
 			editingId = null;
 		}
 	}

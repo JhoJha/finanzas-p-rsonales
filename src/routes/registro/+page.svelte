@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
+	import { toastStore } from '$lib/toast.svelte';
+	import { vibrate } from '$lib/utils/haptics';
+	import { goto } from '$app/navigation';
 	import type { Transaction, Category } from '$lib/schema';
 	import { Mic, MicOff, Save, Plus, X } from '@lucide/svelte';
 	import { parseSpeech } from '$lib/utils/speechParser';
@@ -42,12 +45,15 @@
 			type
 		};
 		financeStore.addTransaction(newTx);
+		
+		vibrate(15);
+		toastStore.add('Transacción guardada exitosamente', 'success');
+		goto('/');
 
 		// Reset fields
 		amount = '';
 		note = '';
 		dictationResult = '';
-		showToastMsg('✓ Transacción guardada');
 	}
 
 	function addCustomCategory() {
@@ -55,15 +61,16 @@
 		const newCat: Category = {
 			id: crypto.randomUUID(),
 			name: newCatName.trim(),
-			icon: 'tag',
-			color: 'bg-gray-500',
+			icon: '🏷️',
+			color: type === 'expense' ? 'bg-red-500' : 'bg-green-500',
 			type
 		};
 		financeStore.categories.push(newCat);
+		vibrate(10);
+		toastStore.add('Categoría creada', 'success');
 		categoryId = newCat.id;
 		newCatName = '';
 		showNewCategory = false;
-		showToastMsg(`✓ Categoría "${newCat.name}" creada`);
 	}
 
 	function startRecording() {
@@ -90,6 +97,9 @@
 			categoryId = parsed.categoryId;
 			type = parsed.type;
 			note = transcript;
+			
+			vibrate(15);
+			toastStore.add('Voz procesada', 'info');
 		};
 
 		recognition.onerror = () => {
@@ -223,7 +233,11 @@
 										<div class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 											<span style="color: var(--color-text);">{cat.name}</span>
 											<button 
-												onclick={() => financeStore.deleteCategory(cat.id)}
+												onclick={() => {
+													financeStore.deleteCategory(cat.id);
+													vibrate([10, 30, 10]);
+													toastStore.add('Categoría eliminada', 'error');
+												}}
 												class="ml-1 flex h-4 w-4 items-center justify-center rounded-full text-red-500 hover:bg-red-100 transition-colors"
 												aria-label="Eliminar categoría"
 											>
