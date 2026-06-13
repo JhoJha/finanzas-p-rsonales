@@ -65,7 +65,7 @@
 	<h1 class="text-2xl font-bold" style="color: var(--color-text);">Análisis y Alertas</h1>
 
 	<!-- Filtro de período -->
-	<DateFilter {selected} onchange={onPeriodChange} />
+	<DateFilter selected={selectedPeriod} onChange={onPeriodChange} />
 
 	<!-- Resumen del período -->
 	<div class="grid grid-cols-2 gap-3">
