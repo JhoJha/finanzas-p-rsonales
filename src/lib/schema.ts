@@ -23,6 +23,7 @@ export const AccountSchema = z.object({
 export const TransactionSchema = z.object({
 	id: z.string(),
 	date: z.string(),
+	timestamp: z.number().optional(),
 	amount: z.number(),
 	categoryId: z.string(),
 	accountId: z.string(),

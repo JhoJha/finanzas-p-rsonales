@@ -1,12 +1,11 @@
 <script lang="ts">
 	import '../app.css';
-	import { Home, PlusCircle, Target, TrendingUp, Sun, Moon } from '@lucide/svelte';
+	import { Home, PlusCircle, Target, TrendingUp, Sun, Moon, Settings, Download } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.svg';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
 	import ToastProvider from '$lib/components/ToastProvider.svelte';
 	import { themeStore, themes } from '$lib/theme.svelte';
-	import { Download } from '@lucide/svelte';
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
 
@@ -72,7 +71,7 @@
 	<meta name="theme-color" content={currentThemeColor} />
 </svelte:head>
 
-<div class="flex h-screen flex-col" style="background-color: var(--color-bg); color: var(--color-text);">
+<div class="flex h-screen flex-col bg-bg text-text">
 	<ToastProvider />
 	<!-- Header con gradiente -->
 	<header
@@ -88,7 +87,7 @@
 			class="absolute left-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"
 			aria-label="Ajustes"
 		>
-			<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+			<Settings size={20} />
 		</a>
 
 		<!-- Botón modo oscuro -->
@@ -108,19 +107,19 @@
 	</header>
 
 	{#if showInstallBanner}
-		<div class="fixed top-20 left-4 right-4 z-50 animate-slide-down rounded-2xl p-4 shadow-lg flex items-center justify-between" style="background-color: var(--color-surface); border: 1px solid var(--color-primary);">
+		<div class="fixed top-20 left-4 right-4 z-50 animate-slide-down rounded-2xl p-4 shadow-lg flex items-center justify-between border border-primary bg-surface">
 			<div class="flex items-center gap-3">
-				<div class="rounded-xl p-2" style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+				<div class="rounded-xl p-2 bg-primary/15 text-primary">
 					<Download size={20} />
 				</div>
 				<div>
-					<p class="text-sm font-bold" style="color: var(--color-text);">Instalar App</p>
-					<p class="text-xs" style="color: var(--color-text-secondary);">Acceso rápido y sin conexión</p>
+					<p class="text-sm font-bold text-text">Instalar App</p>
+					<p class="text-xs text-text-secondary">Acceso rápido y sin conexión</p>
 				</div>
 			</div>
 			<div class="flex gap-2">
-				<button onclick={() => (showInstallBanner = false)} class="px-2 text-xs font-medium" style="color: var(--color-text-secondary);">Quizás luego</button>
-				<button onclick={installPWA} class="rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm" style="background-color: var(--color-primary);">Instalar</button>
+				<button onclick={() => (showInstallBanner = false)} class="px-2 text-xs font-medium text-text-secondary">Quizás luego</button>
+				<button onclick={installPWA} class="rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm bg-primary">Instalar</button>
 			</div>
 		</div>
 	{/if}
@@ -131,7 +130,7 @@
 			{@render children()}
 		{:else}
 			<div class="flex h-64 items-center justify-center">
-				<div class="h-10 w-10 animate-spin rounded-full border-4" style="border-color: var(--color-border); border-top-color: var(--color-primary);"></div>
+				<div class="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary"></div>
 			</div>
 		{/if}
 	</main>

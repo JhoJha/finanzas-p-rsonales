@@ -26,10 +26,9 @@
 <div class="animate-fade-in-up space-y-5">
 	<!-- Main Balance -->
 	<div
-		class="flex flex-col items-center justify-center rounded-2xl p-6 shadow-sm"
-		style="background-color: var(--color-surface);"
+		class="flex flex-col items-center justify-center rounded-2xl p-6 shadow-sm bg-surface"
 	>
-		<span class="text-sm font-medium" style="color: var(--color-text-secondary);">Saldo Total (Todas las cuentas)</span>
+		<span class="text-sm font-medium text-text-secondary">Saldo Total (Todas las cuentas)</span>
 		<span
 			class="text-5xl font-extrabold tracking-tight"
 			style="background: {summary.balance >= 0 ? 'linear-gradient(135deg, var(--color-primary), var(--color-accent))' : 'linear-gradient(135deg, var(--color-danger), #f43f5e)'}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
@@ -70,62 +69,62 @@
 
 	<!-- Stats Grid -->
 	<div class="grid grid-cols-2 gap-4">
-		<div class="rounded-2xl p-4 shadow-sm" style="background-color: var(--color-surface);">
+		<div class="rounded-2xl p-4 shadow-sm bg-surface">
 			<div class="mb-2 flex items-center justify-between">
-				<div class="rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-success) 20%, transparent); color: var(--color-success);">
+				<div class="rounded-full p-2 bg-success/20 text-success">
 					<ArrowUp size={20} />
 				</div>
 			</div>
-			<span class="text-xs font-medium" style="color: var(--color-text-secondary);">Ingresos</span>
-			<div class="text-lg font-bold" style="color: var(--color-text);">S/ {summary.income.toFixed(2)}</div>
+			<span class="text-xs font-medium text-text-secondary">Ingresos</span>
+			<div class="text-lg font-bold text-text">S/ {summary.income.toFixed(2)}</div>
 		</div>
 
-		<div class="rounded-2xl p-4 shadow-sm" style="background-color: var(--color-surface);">
+		<div class="rounded-2xl p-4 shadow-sm bg-surface">
 			<div class="mb-2 flex items-center justify-between">
-				<div class="rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-danger) 20%, transparent); color: var(--color-danger);">
+				<div class="rounded-full p-2 bg-danger/20 text-danger">
 					<ArrowDown size={20} />
 				</div>
 			</div>
-			<span class="text-xs font-medium" style="color: var(--color-text-secondary);">Gastos</span>
-			<div class="text-lg font-bold" style="color: var(--color-text);">S/ {summary.expenses.toFixed(2)}</div>
+			<span class="text-xs font-medium text-text-secondary">Gastos</span>
+			<div class="text-lg font-bold text-text">S/ {summary.expenses.toFixed(2)}</div>
 		</div>
 	</div>
 
 	<!-- Salud Financiera del Mes -->
 	{#if health.monthIncome > 0}
-		<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
-			<h2 class="mb-3 flex items-center gap-2 text-sm font-bold" style="color: var(--color-text);">
-				<Heart size={16} style="color: var(--color-danger);" />
+		<div class="rounded-2xl p-5 shadow-sm bg-surface">
+			<h2 class="mb-3 flex items-center gap-2 text-sm font-bold text-text">
+				<Heart size={16} class="text-danger" />
 				Salud Financiera — Este Mes
 			</h2>
 			<div class="grid grid-cols-3 gap-3">
 				<!-- Tasa de ahorro -->
-				<div class="flex flex-col items-center justify-center rounded-xl p-3" style="background-color: var(--color-bg);">
-					<div class="text-xl font-extrabold" style="color: {health.savingsRate >= 20 ? 'var(--color-success)' : health.savingsRate >= 0 ? 'var(--color-warning, #f59e0b)' : 'var(--color-danger)'};"
+				<div class="flex flex-col items-center justify-center rounded-xl p-3 bg-bg">
+					<div class="text-xl font-extrabold {health.savingsRate >= 20 ? 'text-success' : health.savingsRate >= 0 ? 'text-warning' : 'text-danger'}"
 					>{health.savingsRate}%</div>
-					<div class="mt-0.5 text-center text-xs" style="color: var(--color-text-secondary);">Tasa de ahorro</div>
+					<div class="mt-0.5 text-center text-xs text-text-secondary">Tasa de ahorro</div>
 				</div>
 				<!-- Proyección cierre de mes -->
-				<div class="flex flex-col items-center justify-center rounded-xl p-3" style="background-color: var(--color-bg);">
-					<div class="text-sm font-extrabold leading-tight" style="color: {health.projectedNet >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};"
+				<div class="flex flex-col items-center justify-center rounded-xl p-3 bg-bg">
+					<div class="text-sm font-extrabold leading-tight {health.projectedNet >= 0 ? 'text-success' : 'text-danger'}"
 					>{health.projectedNet >= 0 ? '' : '-'}S/ {Math.abs(health.projectedNet).toFixed(0)}</div>
-					<div class="mt-0.5 text-center text-xs" style="color: var(--color-text-secondary);">Proyección<br/>fin de mes</div>
+					<div class="mt-0.5 text-center text-xs text-text-secondary">Proyección<br/>fin de mes</div>
 				</div>
 				<!-- Presupuesto diario -->
-				<div class="flex flex-col items-center justify-center rounded-xl p-3" style="background-color: var(--color-bg);">
-					<div class="text-sm font-extrabold leading-tight" style="color: {health.dailyBudgetLeft >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};"
+				<div class="flex flex-col items-center justify-center rounded-xl p-3 bg-bg">
+					<div class="text-sm font-extrabold leading-tight {health.dailyBudgetLeft >= 0 ? 'text-success' : 'text-danger'}"
 					>S/ {Math.abs(health.dailyBudgetLeft).toFixed(0)}</div>
-					<div class="mt-0.5 text-center text-xs" style="color: var(--color-text-secondary);">Disponible<br/>/día ({health.daysLeft}d)</div>
+					<div class="mt-0.5 text-center text-xs text-text-secondary">Disponible<br/>/día ({health.daysLeft}d)</div>
 				</div>
 			</div>
 			<!-- Barra de tasa de ahorro -->
-			<div class="mt-3 h-2 w-full overflow-hidden rounded-full" style="background-color: var(--color-bg);">
+			<div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-bg">
 				<div
-					class="h-full rounded-full transition-all duration-700"
-					style="width: {Math.min(Math.max(health.savingsRate, 0), 100)}%; background-color: {health.savingsRate >= 20 ? 'var(--color-success)' : health.savingsRate >= 0 ? 'var(--color-warning, #f59e0b)' : 'var(--color-danger)'};"
+					class="h-full rounded-full transition-all duration-700 {health.savingsRate >= 20 ? 'bg-success' : health.savingsRate >= 0 ? 'bg-warning' : 'bg-danger'}"
+					style="width: {Math.min(Math.max(health.savingsRate, 0), 100)}%;"
 				></div>
 			</div>
-			<p class="mt-1.5 text-xs" style="color: var(--color-text-secondary);">
+			<p class="mt-1.5 text-xs text-text-secondary">
 				{#if health.savingsRate >= 20}✅ ¡Excelente! Estás ahorrando más del 20% de tus ingresos.
 				{:else if health.savingsRate >= 0}⚠️ Tasa de ahorro baja. Intenta reducir gastos.
 				{:else}🚨 Estás gastando más de lo que ingresas este mes.
@@ -136,37 +135,37 @@
 
 	<!-- Herramientas Avanzadas -->
 	<div class="grid grid-cols-2 gap-4">
-		<a href="/presupuestos" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
-			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+		<a href="/presupuestos" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-primary/15 text-primary">
 				<Target size={20} />
 			</div>
-			<span class="text-sm font-semibold" style="color: var(--color-text);">Presupuestos</span>
+			<span class="text-sm font-semibold text-text">Presupuestos</span>
 		</a>
-		<a href="/recurrentes" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
-			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+		<a href="/recurrentes" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-primary/15 text-primary">
 				<Repeat size={20} />
 			</div>
-			<span class="text-sm font-semibold" style="color: var(--color-text);">Recurrentes</span>
+			<span class="text-sm font-semibold text-text">Recurrentes</span>
 		</a>
-		<a href="/deudas" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
-			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent); color: var(--color-warning, #f59e0b);">
+		<a href="/deudas" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-warning/15 text-warning">
 				<HandCoins size={20} />
 			</div>
-			<span class="text-sm font-semibold" style="color: var(--color-text);">Deudas</span>
+			<span class="text-sm font-semibold text-text">Deudas</span>
 		</a>
-		<a href="/calendario" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
-			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success);">
+		<a href="/calendario" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-success/15 text-success">
 				<CalendarIcon size={20} />
 			</div>
-			<span class="text-sm font-semibold" style="color: var(--color-text);">Calendario</span>
+			<span class="text-sm font-semibold text-text">Calendario</span>
 		</a>
 	</div>
 
 	<!-- Gráfico de gastos por categoría -->
 	{#if hasExpenses}
-		<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
-			<h2 class="mb-4 flex items-center gap-2 text-lg font-semibold" style="color: var(--color-text);">
-				<TrendingUp size={20} style="color: var(--color-primary);" />
+		<div class="rounded-2xl p-5 shadow-sm bg-surface">
+			<h2 class="mb-4 flex items-center gap-2 text-lg font-semibold text-text">
+				<TrendingUp size={20} class="text-primary" />
 				Gastos por categoría
 			</h2>
 			<Chart
@@ -204,8 +203,8 @@
 	</div>
 
 	<!-- Recent Transactions -->
-	<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
-		<h2 class="mb-4 text-lg font-semibold" style="color: var(--color-text);">
+	<div class="rounded-2xl p-5 shadow-sm bg-surface">
+		<h2 class="mb-4 text-lg font-semibold text-text">
 			Actividad Reciente
 		</h2>
 		<TransactionHistory transactions={recentTransactions} />

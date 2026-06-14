@@ -10,13 +10,17 @@ export class TransactionsStore {
 		if (stored && Array.isArray(stored)) {
 			this.data = stored.map((t: any) => ({
 				...t,
-				accountId: t.accountId || 'default-cash'
+				accountId: t.accountId || 'default-cash',
+				timestamp: t.timestamp ?? new Date(t.date).getTime()
 			})).filter((t: any) => TransactionSchema.safeParse(t).success);
 		}
 		this.isReady = true;
 	}
 
 	addTransaction(transaction: Transaction) {
+		if (!transaction.timestamp) {
+			transaction.timestamp = new Date(transaction.date).getTime();
+		}
 		this.data.push(transaction);
 		this.save();
 	}
@@ -29,7 +33,11 @@ export class TransactionsStore {
 	updateTransaction(id: string, updateData: Partial<Transaction>) {
 		const index = this.data.findIndex((t) => t.id === id);
 		if (index !== -1) {
-			this.data[index] = { ...this.data[index], ...updateData };
+			const updated = { ...this.data[index], ...updateData };
+			if (updateData.date) {
+				updated.timestamp = new Date(updated.date).getTime();
+			}
+			this.data[index] = updated;
 			this.save();
 		}
 	}

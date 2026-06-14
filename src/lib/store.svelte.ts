@@ -126,15 +126,11 @@ class FinanceStoreFacade {
 		if (!budget) return null;
 
 		const now = new Date();
-		const currentMonth = now.getMonth();
-		const currentYear = now.getFullYear();
+		const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+		const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
 
 		const spent = this.transactions
-			.filter(t => t.type === 'expense' && t.categoryId === categoryId)
-			.filter(t => {
-				const d = new Date(t.date);
-				return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-			})
+			.filter(t => t.type === 'expense' && t.categoryId === categoryId && t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth)
 			.reduce((acc, t) => acc + t.amount, 0);
 
 		return {
@@ -227,35 +223,39 @@ class FinanceStoreFacade {
 	}
 
 	getTransactionsByPeriod(period: Period): Transaction[] {
-		const now = new Date();
-		const start = new Date();
+		const now = Date.now();
+		let start = 0;
 
 		if (typeof period === 'string' && period.includes('-')) {
 			const [year, month] = period.split('-').map(Number);
-			return this.transactions.filter((t) => {
-				const d = new Date(t.date);
-				return d.getFullYear() === year && d.getMonth() + 1 === month;
-			});
+			const startOfMonth = new Date(year, month - 1, 1).getTime();
+			const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).getTime();
+			return this.transactions.filter((t) => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
 		}
 
+		const d = new Date();
 		switch (period) {
 			case 'today':
-				start.setHours(0, 0, 0, 0);
+				d.setHours(0, 0, 0, 0);
+				start = d.getTime();
 				break;
 			case 'week':
-				start.setDate(start.getDate() - 7);
+				d.setDate(d.getDate() - 7);
+				start = d.getTime();
 				break;
 			case 'month':
-				start.setMonth(start.getMonth() - 1);
+				d.setMonth(d.getMonth() - 1);
+				start = d.getTime();
 				break;
 			case 'year':
-				start.setFullYear(start.getFullYear() - 1);
+				d.setFullYear(d.getFullYear() - 1);
+				start = d.getTime();
 				break;
 			default:
 				return [...this.transactions];
 		}
 
-		return this.transactions.filter((t) => new Date(t.date) >= start && new Date(t.date) <= now);
+		return this.transactions.filter((t) => t.timestamp! >= start && t.timestamp! <= now);
 	}
 
 	getExpensesByCategory(period: Period = 'all') {
@@ -312,10 +312,10 @@ class FinanceStoreFacade {
 			const month = d.getMonth();
 			const year = d.getFullYear();
 
-			const monthTx = this.transactions.filter((t) => {
-				const td = new Date(t.date);
-				return td.getMonth() === month && td.getFullYear() === year;
-			});
+			const startOfMonth = new Date(year, month, 1).getTime();
+			const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
+
+			const monthTx = this.transactions.filter((t) => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
 
 			const expenses = monthTx.filter((t) => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
 			const income = monthTx.filter((t) => t.type === 'income').reduce((a, b) => a + b.amount, 0);
@@ -337,15 +337,18 @@ class FinanceStoreFacade {
 		const now = new Date();
 		const weekStart = new Date(now);
 		weekStart.setDate(weekStart.getDate() - 7);
+		const weekStartTs = weekStart.getTime();
+		
 		const prevStart = new Date(now);
 		prevStart.setDate(prevStart.getDate() - 14);
+		const prevStartTs = prevStart.getTime();
 
 		const current = this.transactions
-			.filter((t) => t.type === 'expense' && new Date(t.date) >= weekStart)
+			.filter((t) => t.type === 'expense' && t.timestamp! >= weekStartTs)
 			.reduce((a, b) => a + b.amount, 0);
 
 		const previous = this.transactions
-			.filter((t) => t.type === 'expense' && new Date(t.date) >= prevStart && new Date(t.date) < weekStart)
+			.filter((t) => t.type === 'expense' && t.timestamp! >= prevStartTs && t.timestamp! < weekStartTs)
 			.reduce((a, b) => a + b.amount, 0);
 
 		const diff = current - previous;
@@ -362,10 +365,10 @@ class FinanceStoreFacade {
 		const dayOfMonth = now.getDate();
 		const daysLeft = daysInMonth - dayOfMonth;
 
-		const monthTx = this.transactions.filter(t => {
-			const d = new Date(t.date);
-			return d.getMonth() === month && d.getFullYear() === year;
-		});
+		const startOfMonth = new Date(year, month, 1).getTime();
+		const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
+
+		const monthTx = this.transactions.filter(t => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
 
 		const monthIncome = monthTx.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
 		const monthExpenses = monthTx.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
