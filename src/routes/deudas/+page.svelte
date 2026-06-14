@@ -166,16 +166,16 @@
 		
 		<div class="space-y-4">
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">¿A quién o a qué entidad?</label>
-				<input type="text" bind:value={contactName} placeholder="Ej. Juan, Tarjeta Ripley..." class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-15">¿A quién o a qué entidad?</label>
+				<input id="a11y-15" type="text" bind:value={contactName} placeholder="Ej. Juan, Tarjeta Ripley..." class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
 			</div>
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Monto Total (S/)</label>
-				<input type="number" bind:value={totalAmount} placeholder="0.00" class="mt-1 w-full rounded-xl p-3 text-lg font-bold outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-16">Monto Total (S/)</label>
+				<input id="a11y-16" type="number" bind:value={totalAmount} placeholder="0.00" class="mt-1 w-full rounded-xl p-3 text-lg font-bold outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
 			</div>
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Fecha Límite (Opcional)</label>
-				<input type="date" bind:value={dueDate} class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-17">Fecha Límite (Opcional)</label>
+				<input id="a11y-17" type="date" bind:value={dueDate} class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
 			</div>
 
 			<div class="mt-6 flex gap-3">
@@ -195,15 +195,15 @@
 		
 		<div class="space-y-4">
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Monto a abonar (S/)</label>
-				<input type="number" bind:value={payAmount} placeholder="0.00" class="mt-1 w-full rounded-xl p-3 text-lg font-bold outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-18">Monto a abonar (S/)</label>
+				<input id="a11y-18" type="number" bind:value={payAmount} placeholder="0.00" class="mt-1 w-full rounded-xl p-3 text-lg font-bold outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
 			</div>
 			
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-19">
 					{activeTab === 'i_owe' ? 'Pagar desde:' : 'Recibir en:'}
 				</label>
-				<select bind:value={payAccountId} class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);">
+				<select id="a11y-19" bind:value={payAccountId} class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);">
 					{#each financeStore.accounts as acc}
 						<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
 					{/each}

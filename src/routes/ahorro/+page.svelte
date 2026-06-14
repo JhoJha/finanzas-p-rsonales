@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
-	import type { Goal } from '$lib/schema';
-	import { INTERNAL_CATEGORY_SAVINGS } from '$lib/schema';
-	import { Plus, Target, CheckCircle2, Trash2, Download, Upload, PiggyBank, X, Calendar } from '@lucide/svelte';
+	import { GoalSchema, INTERNAL_CATEGORY_SAVINGS } from '$lib/schema';
+	import { Plus, Target, CheckCircle2, Trash2, PiggyBank, X, Calendar } from '@lucide/svelte';
 
 	let showingNewGoal = $state(false);
 	let newGoalName = $state('');
@@ -32,14 +31,21 @@
 			return;
 		}
 
-		const goal: Goal = {
+		const goal = {
 			id: crypto.randomUUID(),
 			name: newGoalName,
 			targetAmount: parseFloat(newGoalAmount),
 			currentAmount: 0,
 			deadline: newGoalDeadline ? new Date(newGoalDeadline).toISOString() : undefined
 		};
-		financeStore.addGoal(goal);
+
+		const parsed = GoalSchema.safeParse(goal);
+		if (!parsed.success) {
+			toastStore.add('Verifica que el nombre y monto sean válidos', 'error');
+			return;
+		}
+
+		financeStore.addGoal(parsed.data);
 
 		showingNewGoal = false;
 		newGoalName = '';
@@ -84,34 +90,6 @@
 		}
 	}
 
-	function exportData() {
-		const json = financeStore.exportToJSON();
-		const blob = new Blob([json], { type: 'application/json' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `finanzas_backup_${new Date().toISOString().split('T')[0]}.json`;
-		a.click();
-		URL.revokeObjectURL(url);
-		toastStore.add('📦 Backup exportado correctamente');
-	}
-
-	function importData() {
-		const input = document.createElement('input');
-		input.type = 'file';
-		input.accept = '.json';
-		input.onchange = async (e: any) => {
-			const file = e.target?.files?.[0];
-			if (!file) return;
-			const text = await file.text();
-			if (financeStore.importFromJSON(text)) {
-				toastStore.add('📦 Datos importados correctamente');
-			} else {
-				toastStore.add('❌ Archivo inválido o corrupto', 'error');
-			}
-		};
-		input.click();
-	}
 </script>
 
 <div class="animate-fade-in-up space-y-6">
@@ -124,24 +102,6 @@
 			style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);"
 		>
 			<Plus size={24} />
-		</button>
-	</div>
-
-	<!-- Botones de Backup/Restaurar -->
-	<div class="flex gap-2">
-		<button
-			onclick={exportData}
-			class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-95"
-			style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);"
-		>
-			<Download size={14} /> Exportar Backup
-		</button>
-		<button
-			onclick={importData}
-			class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-95"
-			style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);"
-		>
-			<Upload size={14} /> Importar Backup
 		</button>
 	</div>
 
@@ -311,8 +271,8 @@
 
 		<div class="space-y-4">
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Monto a ahorrar (S/)</label>
-				<input
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-20">Monto a ahorrar (S/)</label>
+				<input id="a11y-20"
 					type="number"
 					bind:value={abonarAmount}
 					placeholder="0.00"
@@ -322,8 +282,8 @@
 			</div>
 
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Descontar de cuenta</label>
-				<select
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-21">Descontar de cuenta</label>
+				<select id="a11y-21"
 					bind:value={abonarAccountId}
 					class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"

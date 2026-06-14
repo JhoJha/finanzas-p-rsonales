@@ -1,5 +1,5 @@
 <script lang="ts">
-	export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
+	import type { Period } from '$lib/store.svelte';
 
 	let {
 		selected = 'all' as Period,

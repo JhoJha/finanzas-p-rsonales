@@ -3,7 +3,7 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { vibrate } from '$lib/utils/haptics';
 	import { goto } from '$app/navigation';
-	import type { Transaction, Category } from '$lib/schema';
+	import { TransactionSchema, type Category } from '$lib/schema';
 	import { Mic, MicOff, Save, Plus, X } from '@lucide/svelte';
 	import { parseSpeech } from '$lib/utils/speechParser';
 
@@ -57,7 +57,7 @@
 		const [year, month, day] = txDate.split('-').map(Number);
 		const chosenDate = new Date(year, month - 1, day, new Date().getHours(), new Date().getMinutes());
 
-		const newTx: Transaction = {
+		const newTx = {
 			id: crypto.randomUUID(),
 			date: chosenDate.toISOString(),
 			amount: finalAmount,
@@ -67,12 +67,19 @@
 			note,
 			type
 		};
-		financeStore.addTransaction(newTx);
+
+		const parsed = TransactionSchema.safeParse(newTx);
+		if (!parsed.success) {
+			toastStore.add('Error en los datos: Revisa el formulario', 'error');
+			return;
+		}
+
+		financeStore.addTransaction(parsed.data);
 		
 		vibrate(15);
 		
-		if (newTx.type === 'expense' && newTx.categoryId !== 'transfer') {
-			const progress = financeStore.getBudgetProgress(newTx.categoryId);
+		if (parsed.data.type === 'expense' && parsed.data.categoryId !== 'transfer') {
+			const progress = financeStore.getBudgetProgress(parsed.data.categoryId);
 			if (progress) {
 				if (progress.percent >= 100) {
 					toastStore.add(`¡Has superado el presupuesto! (${progress.percent}%)`, 'error');
@@ -219,10 +226,10 @@
 
 			<!-- Monto -->
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-1">
 					Monto (S/) <span class="font-normal opacity-70">(soporta sumas ej. 15+20)</span>
 				</label>
-				<input
+				<input id="a11y-1"
 					type="text"
 					inputmode="decimal"
 					bind:value={amount}
@@ -236,10 +243,10 @@
 			<!-- Cuentas -->
 			<div class="flex gap-2">
 				<div class="flex-1">
-					<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">
+					<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-2">
 						{type === 'transfer' ? 'Desde Cuenta' : 'Cuenta'}
 					</label>
-					<select
+				<select id="a11y-2"
 						bind:value={accountId}
 						class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -252,8 +259,8 @@
 
 				{#if type === 'transfer'}
 					<div class="flex-1">
-						<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Hacia Cuenta</label>
-						<select
+						<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-3">Hacia Cuenta</label>
+				<select id="a11y-3"
 							bind:value={toAccountId}
 							class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
 							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -269,7 +276,7 @@
 			<!-- Categoria -->
 			{#if type !== 'transfer'}
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Categoría</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-4">Categoría</label>
 				<div class="mt-1 flex gap-2">
 					<select
 						bind:value={categoryId}
@@ -342,7 +349,7 @@
 			<!-- Nota -->
 			<div>
 				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Nota / Detalle</label>
-				<input
+				<input id="a11y-4"
 					type="text"
 					bind:value={note}
 					placeholder="Ej. Almuerzo con amigos"
@@ -353,8 +360,8 @@
 
 			<!-- Fecha -->
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Fecha</label>
-				<input
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-5">Fecha</label>
+				<input id="a11y-5"
 					type="date"
 					bind:value={txDate}
 					max={new Date().toISOString().split('T')[0]}

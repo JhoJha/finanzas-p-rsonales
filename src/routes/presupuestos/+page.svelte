@@ -49,8 +49,8 @@
 		
 		<div class="space-y-3">
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Categoría</label>
-				<select
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-13">Categoría</label>
+				<select id="a11y-13"
 					bind:value={categoryId}
 					class="mt-1 w-full rounded-xl p-3 text-sm outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -62,8 +62,8 @@
 			</div>
 
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Límite (S/)</label>
-				<input
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-14">Límite (S/)</label>
+				<input id="a11y-14"
 					type="number"
 					bind:value={amount}
 					placeholder="0.00"

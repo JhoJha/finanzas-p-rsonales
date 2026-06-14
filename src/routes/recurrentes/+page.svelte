@@ -91,8 +91,8 @@
 		<!-- Monto y Frecuencia -->
 		<div class="flex gap-2">
 			<div class="flex-1">
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Monto (S/)</label>
-				<input
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-6">Monto (S/)</label>
+				<input id="a11y-6"
 					type="number"
 					bind:value={amount}
 					placeholder="0.00"
@@ -101,8 +101,8 @@
 				/>
 			</div>
 			<div class="flex-1">
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Frecuencia</label>
-				<select
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-7">Frecuencia</label>
+				<select id="a11y-7"
 					bind:value={frequency}
 					class="mt-1 w-full rounded-xl p-3 text-sm outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -117,8 +117,8 @@
 
 		<!-- Fecha de inicio -->
 		<div>
-			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Próximo Cobro/Pago</label>
-			<input
+			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-8">Próximo Cobro/Pago</label>
+				<input id="a11y-8"
 				type="date"
 				bind:value={nextDate}
 				class="mt-1 w-full rounded-xl p-3 text-sm outline-none transition-all focus:ring-2"
@@ -129,10 +129,10 @@
 		<!-- Cuentas -->
 		<div class="flex gap-2">
 			<div class="flex-1">
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-9">
 					{type === 'transfer' ? 'Desde' : 'Cuenta'}
 				</label>
-				<select
+				<select id="a11y-9"
 					bind:value={accountId}
 					class="mt-1 w-full rounded-xl p-3 text-sm outline-none transition-all"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -145,8 +145,8 @@
 
 			{#if type === 'transfer'}
 				<div class="flex-1">
-					<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Hacia</label>
-					<select
+					<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-10">Hacia</label>
+				<select id="a11y-10"
 						bind:value={toAccountId}
 						class="mt-1 w-full rounded-xl p-3 text-sm outline-none transition-all"
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -162,8 +162,8 @@
 		<!-- Categoria -->
 		{#if type !== 'transfer'}
 		<div>
-			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Categoría</label>
-			<select
+			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-11">Categoría</label>
+				<select id="a11y-11"
 				bind:value={categoryId}
 				class="mt-1 w-full rounded-xl p-3 text-sm outline-none transition-all"
 				style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -176,8 +176,8 @@
 		{/if}
 
 		<div>
-			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Nota / Detalle</label>
-			<input
+			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-12">Nota / Detalle</label>
+				<input id="a11y-12"
 				type="text"
 				bind:value={note}
 				placeholder="Ej. Suscripción a Netflix"
