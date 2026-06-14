@@ -2,10 +2,12 @@
 	import { themeStore, themes, type ThemeId } from '$lib/theme.svelte';
 	import { Settings, X, DollarSign } from '@lucide/svelte';
 	import { financeStore } from '$lib/store.svelte';
+	import { vibrate } from '$lib/utils/haptics';
 
 	let current = $derived(themeStore.current);
 
 	function select(themeId: ThemeId) {
+		vibrate(15);
 		themeStore.setTheme(themeId);
 	}
 </script>

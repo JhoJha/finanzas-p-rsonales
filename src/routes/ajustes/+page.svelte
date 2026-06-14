@@ -3,6 +3,7 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { Download, Upload, Settings } from '@lucide/svelte';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
+	import { vibrate } from '$lib/utils/haptics';
 
 	import { exportTransactionsToCSV } from '$lib/utils/csv';
 
@@ -15,6 +16,7 @@
 		a.download = `finanzas_backup_${new Date().toISOString().split('T')[0]}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
+		vibrate(20);
 		toastStore.add('📦 Backup exportado correctamente');
 	}
 
@@ -27,6 +29,7 @@
 		a.download = `finanzas_transacciones_${new Date().toISOString().split('T')[0]}.csv`;
 		a.click();
 		URL.revokeObjectURL(url);
+		vibrate(20);
 		toastStore.add('📊 CSV exportado correctamente');
 	}
 
@@ -39,8 +42,10 @@
 			if (!file) return;
 			const text = await file.text();
 			if (financeStore.importFromJSON(text)) {
+				vibrate([10, 30, 10]);
 				toastStore.add('📦 Datos importados correctamente');
 			} else {
+				vibrate([50, 50, 50]);
 				toastStore.add('❌ Archivo inválido o corrupto', 'error');
 			}
 		};

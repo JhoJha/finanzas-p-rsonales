@@ -75,10 +75,25 @@
 
 		return d.toLocaleDateString('es-PE', {
 			day: 'numeric',
-			month: 'short',
+			month: 'long',
 			year: 'numeric'
 		});
 	}
+
+	let groupedTransactions = $derived.by(() => {
+		const groups: { dateStr: string, txs: Transaction[] }[] = [];
+		let lastDate = '';
+		for (const t of transactions) {
+			const dStr = formatDate(t.date);
+			if (dStr !== lastDate) {
+				groups.push({ dateStr: dStr, txs: [t] });
+				lastDate = dStr;
+			} else {
+				groups[groups.length - 1].txs.push(t);
+			}
+		}
+		return groups;
+	});
 </script>
 
 {#if transactions.length === 0}
@@ -88,9 +103,15 @@
 		<p class="mt-1 text-xs">Registra tu primer gasto o ingreso</p>
 	</div>
 {:else}
-	<div class="space-y-2">
-		{#each transactions as t (t.id)}
-			{#if editingId === t.id}
+	<div class="space-y-6">
+		{#each groupedTransactions as group}
+			<div class="relative">
+				<div class="sticky top-0 z-30 mb-3 flex items-center justify-between rounded-xl px-4 py-2 shadow-sm backdrop-blur-md transition-all" style="background-color: color-mix(in srgb, var(--color-surface) 80%, transparent); border: 1px solid var(--color-border);">
+					<span class="text-xs font-extrabold uppercase tracking-widest" style="color: var(--color-text);">{group.dateStr}</span>
+				</div>
+				<div class="space-y-2">
+				{#each group.txs as t (t.id)}
+					{#if editingId === t.id}
 				<!-- Formulario de Edición en Línea -->
 				<div class="animate-fade-in-up flex flex-col gap-3 rounded-xl p-4 shadow-md" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 					<div class="flex justify-between items-center mb-1">
@@ -206,6 +227,9 @@
 					</div>
 				</div>
 			{/if}
+				{/each}
+				</div>
+			</div>
 		{/each}
 	</div>
 {/if}

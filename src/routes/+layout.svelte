@@ -7,6 +7,7 @@
 	import { themeStore, themes } from '$lib/theme.svelte';
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
+	import { vibrate } from '$lib/utils/haptics';
 
 	let { children } = $props();
 
@@ -109,7 +110,7 @@
 		</a>
 
 		<button
-			onclick={() => themeStore.toggleDark()}
+			onclick={() => { vibrate(15); themeStore.toggleDark(); }}
 			class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"
 			aria-label="Cambiar modo"
 		>
@@ -144,8 +145,22 @@
 		{#if financeStore.isReady}
 			{@render children()}
 		{:else}
-			<div class="flex h-64 items-center justify-center">
-				<div class="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary"></div>
+			<div class="space-y-5 animate-pulse opacity-70">
+				<!-- Skeleton Balance -->
+				<div class="flex flex-col items-center justify-center rounded-2xl p-6 shadow-sm" style="background-color: var(--color-surface);">
+					<div class="h-4 w-40 rounded-full mb-4" style="background-color: var(--color-border);"></div>
+					<div class="h-12 w-56 rounded-full" style="background-color: var(--color-border);"></div>
+				</div>
+				<!-- Skeleton Cuentas -->
+				<div class="flex gap-4 overflow-hidden pb-4 pt-2">
+					<div class="min-w-[260px] h-36 rounded-3xl shadow-md" style="background-color: var(--color-surface);"></div>
+					<div class="min-w-[260px] h-36 rounded-3xl shadow-md" style="background-color: var(--color-surface);"></div>
+				</div>
+				<!-- Skeleton Stats -->
+				<div class="grid grid-cols-2 gap-4">
+					<div class="h-28 rounded-2xl shadow-sm" style="background-color: var(--color-surface);"></div>
+					<div class="h-28 rounded-2xl shadow-sm" style="background-color: var(--color-surface);"></div>
+				</div>
 			</div>
 		{/if}
 	</main>
@@ -165,6 +180,7 @@
 		</a>
 		<a
 			href="/registro"
+			onclick={() => vibrate(15)}
 			class="flex flex-col items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
 			style="width: 50px; height: 50px;"
 		>

@@ -21,6 +21,29 @@
 	let showNewCategory = $state(false);
 	let newCatName = $state('');
 
+<script lang="ts">
+	import { financeStore } from '$lib/store.svelte';
+	import { toastStore } from '$lib/toast.svelte';
+	import { vibrate } from '$lib/utils/haptics';
+	import { goto } from '$app/navigation';
+	import { TransactionSchema, type Category } from '$lib/schema';
+	import { Mic, MicOff, Save, Plus, X } from '@lucide/svelte';
+	import { parseSpeech } from '$lib/utils/speechParser';
+
+	let amount = $state('');
+	let categoryId = $state('1');
+	let type = $state<'expense' | 'income' | 'transfer'>('expense');
+	let accountId = $state(financeStore.accounts[0]?.id || 'default-cash');
+	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
+	let note = $state('');
+	let txDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD, por defecto hoy
+	let isRecording = $state(false);
+	let dictationResult = $state('');
+
+	// Categoría personalizada
+	let showNewCategory = $state(false);
+	let newCatName = $state('');
+
 	const categories = financeStore.categories;
 
 	function showToastMsg(msg: string, type: 'success' | 'error' | 'info' = 'success') {
@@ -29,7 +52,13 @@
 
 	function evaluateMath(expression: string): number | null {
 		try {
-			const sanitized = expression.replace(/,/g, '.').replace(/[^0-9+\-*/.]/g, '');
+			// Remove commas if they are followed by exactly 3 digits (thousand separator)
+			let sanitized = expression.replace(/,(?=\d{3}(?!\d))/g, '');
+			// Replace any remaining commas with dots (decimal separator)
+			sanitized = sanitized.replace(/,/g, '.');
+			// Remove anything else
+			sanitized = sanitized.replace(/[^0-9+\-*/.]/g, '');
+			
 			if (!sanitized) return null;
 			const result = new Function('return ' + sanitized)();
 			return typeof result === 'number' ? result : null;
@@ -38,10 +67,40 @@
 		}
 	}
 
+	function handleAmountInput(e: any) {
+		let val = e.target.value;
+		// Si contiene operadores matemáticos o termina en punto/coma, no formatear en tiempo real para no interferir
+		if (/[+\-*/]/.test(val) || val.endsWith('.') || val.endsWith(',')) {
+			amount = val;
+			return;
+		}
+		
+		// Guardar si tiene decimales
+		const parts = val.split(/[.,]/);
+		if (parts.length > 2) {
+			amount = val; // Invalid multiple dots, let user fix
+			return;
+		}
+
+		// Limpiar todo excepto numeros
+		let numeric = parts[0].replace(/\D/g, '');
+		if (numeric) {
+			numeric = parseInt(numeric, 10).toLocaleString('en-US'); // Agrega comas
+		}
+		
+		if (parts.length === 2) {
+			amount = numeric + '.' + parts[1].replace(/\D/g, '');
+		} else {
+			amount = numeric;
+		}
+	}
+
 	function handleAmountBlur() {
 		const val = evaluateMath(amount);
 		if (val !== null && !isNaN(val)) {
-			amount = (Math.round(val * 100) / 100).toString();
+			const parts = (Math.round(val * 100) / 100).toString().split('.');
+			parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+			amount = parts.join('.');
 		}
 	}
 
@@ -232,7 +291,8 @@
 				<input id="a11y-1"
 					type="text"
 					inputmode="decimal"
-					bind:value={amount}
+					value={amount}
+					oninput={handleAmountInput}
 					onblur={handleAmountBlur}
 					placeholder="0.00"
 					class="mt-1 w-full rounded-xl p-3.5 text-lg font-bold outline-none transition-all focus:ring-2"
