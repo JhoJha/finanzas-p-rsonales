@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
-	import { Trash2, DollarSign, ArrowUp, ArrowDown, Pencil, X, Save } from '@lucide/svelte';
+	import { Trash2, DollarSign, ArrowUp, ArrowDown, Pencil, X, Save, Calendar } from '@lucide/svelte';
 	import type { Transaction } from '$lib/schema';
 	import { toastStore } from '$lib/toast.svelte';
 	import { vibrate } from '$lib/utils/haptics';
@@ -11,7 +11,8 @@
 	let editAmount = $state<number>(0);
 	let editNote = $state<string>('');
 	let editCategoryId = $state<string>('');
-	let editType = $state<'income'|'expense'>('expense');
+	let editType = $state<'income'|'expense'|'transfer'>('expense');
+	let editDate = $state<string>(''); // YYYY-MM-DD
 
 	function getCategoryColor(categoryId: string): string {
 		const cat = financeStore.categories.find((c) => c.id === categoryId);
@@ -36,15 +37,22 @@
 		editAmount = t.amount;
 		editNote = t.note || '';
 		editCategoryId = t.categoryId;
-		editType = t.type;
+		editType = t.type as 'income' | 'expense' | 'transfer';
+		// Convertir ISO a YYYY-MM-DD para el input date
+		editDate = new Date(t.date).toISOString().split('T')[0];
 	}
 
 	function saveEdit() {
-		if(editingId) {
+		if (editingId) {
+			// Reconstruir fecha ISO desde YYYY-MM-DD preservando hora local
+			const [year, month, day] = editDate.split('-').map(Number);
+			const newDate = new Date(year, month - 1, day, 12, 0, 0).toISOString();
+
 			financeStore.updateTransaction(editingId, {
 				amount: editAmount,
 				note: editNote,
-				categoryId: editCategoryId
+				categoryId: editCategoryId,
+				date: newDate
 			});
 			vibrate(15);
 			toastStore.add('Cambios guardados', 'success');
@@ -104,14 +112,14 @@
 							/>
 						</div>
 						<select
-							bind:value={editCategoryId}
-							class="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
-							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
-						>
-							{#each financeStore.categories.filter(c => c.type === editType || editType === 'transfer') as cat}
-								<option value={cat.id}>{cat.name}</option>
-							{/each}
-						</select>
+						bind:value={editCategoryId}
+						class="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+					>
+						{#each financeStore.categories.filter(c => !c.id.startsWith('__') && (c.type === editType || editType === 'transfer')) as cat}
+							<option value={cat.id}>{cat.name}</option>
+						{/each}
+					</select>
 					</div>
 
 					<input
@@ -121,6 +129,18 @@
 						class="w-full rounded-xl px-3 py-2 text-sm outline-none"
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 					/>
+
+					<!-- Fecha -->
+					<div class="flex items-center gap-2">
+						<Calendar size={14} style="color: var(--color-text-secondary); flex-shrink: 0;" />
+						<input
+							type="date"
+							bind:value={editDate}
+							max={new Date().toISOString().split('T')[0]}
+							class="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+						/>
+					</div>
 
 					<button
 						onclick={saveEdit}

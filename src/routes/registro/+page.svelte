@@ -13,6 +13,7 @@
 	let accountId = $state(financeStore.accounts[0]?.id || 'default-cash');
 	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
 	let note = $state('');
+	let txDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD, por defecto hoy
 	let isRecording = $state(false);
 	let dictationResult = $state('');
 
@@ -52,9 +53,13 @@
 			return;
 		}
 
+		// Construir ISO desde la fecha elegida preservando la hora local del dispositivo
+		const [year, month, day] = txDate.split('-').map(Number);
+		const chosenDate = new Date(year, month - 1, day, new Date().getHours(), new Date().getMinutes());
+
 		const newTx: Transaction = {
 			id: crypto.randomUUID(),
-			date: new Date().toISOString(),
+			date: chosenDate.toISOString(),
 			amount: finalAmount,
 			categoryId: type === 'transfer' ? 'transfer' : categoryId,
 			accountId,
@@ -89,6 +94,7 @@
 		amount = '';
 		note = '';
 		dictationResult = '';
+		txDate = new Date().toISOString().split('T')[0];
 	}
 
 	function addCustomCategory() {
@@ -270,7 +276,7 @@
 						class="flex-1 rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 					>
-						{#each categories.filter(c => c.type === type) as cat}
+						{#each categories.filter(c => !c.id.startsWith('__') && c.type === type) as cat}
 							<option value={cat.id}>{cat.name}</option>
 						{/each}
 					</select>
@@ -303,11 +309,11 @@
 						</div>
 
 						<!-- Categorías personalizadas -->
-						{#if categories.filter(c => c.type === type && c.id.length > 5).length > 0}
+						{#if categories.filter(c => c.type === type && !c.id.startsWith('__') && c.id.length > 5).length > 0}
 							<div class="mt-4 border-t pt-3" style="border-color: var(--color-border);">
 								<p class="mb-2 text-xs font-semibold" style="color: var(--color-text-secondary);">Tus Categorías Personalizadas</p>
 								<div class="flex flex-wrap gap-2">
-									{#each categories.filter(c => c.type === type && c.id.length > 5) as cat}
+									{#each categories.filter(c => c.type === type && !c.id.startsWith('__') && c.id.length > 5) as cat}
 										<div class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 											<span style="color: var(--color-text);">{cat.name}</span>
 											<button 
@@ -340,6 +346,18 @@
 					placeholder="Ej. Almuerzo con amigos"
 					class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+				/>
+			</div>
+
+			<!-- Fecha -->
+			<div>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Fecha</label>
+				<input
+					type="date"
+					bind:value={txDate}
+					max={new Date().toISOString().split('T')[0]}
+					class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
+					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border); color-scheme: {document?.documentElement?.classList?.contains('dark') ? 'dark' : 'light'};"
 				/>
 			</div>
 
