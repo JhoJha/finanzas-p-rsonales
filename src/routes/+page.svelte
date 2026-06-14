@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
-	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins } from '@lucide/svelte';
 	import Chart from '$lib/components/Chart.svelte';
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 
@@ -105,6 +105,18 @@
 				<Repeat size={20} />
 			</div>
 			<span class="text-sm font-semibold" style="color: var(--color-text);">Recurrentes</span>
+		</a>
+		<a href="/deudas" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
+			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent); color: var(--color-warning, #f59e0b);">
+				<HandCoins size={20} />
+			</div>
+			<span class="text-sm font-semibold" style="color: var(--color-text);">Deudas</span>
+		</a>
+		<a href="/calendario" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
+			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success);">
+				<CalendarIcon size={20} />
+			</div>
+			<span class="text-sm font-semibold" style="color: var(--color-text);">Calendario</span>
 		</a>
 	</div>
 

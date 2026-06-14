@@ -54,12 +54,24 @@ export const RecurringTransactionSchema = z.object({
 	nextDate: z.string()
 });
 
+export const DebtSchema = z.object({
+	id: z.string(),
+	type: z.enum(['i_owe', 'owed_to_me']),
+	contactName: z.string(),
+	totalAmount: z.number(),
+	paidAmount: z.number(),
+	dueDate: z.string().optional(), // ISO date
+	status: z.enum(['pending', 'paid']),
+	accountId: z.string().optional() // Default account for related transactions
+});
+
 export type Category = z.infer<typeof CategorySchema>;
 export type Transaction = z.infer<typeof TransactionSchema>;
 export type Goal = z.infer<typeof GoalSchema>;
 export type Account = z.infer<typeof AccountSchema>;
 export type Budget = z.infer<typeof BudgetSchema>;
 export type RecurringTransaction = z.infer<typeof RecurringTransactionSchema>;
+export type Debt = z.infer<typeof DebtSchema>;
 
 export const defaultCategories: Category[] = [
 	{ id: '1', name: 'Alimentación', icon: 'pizza', color: 'bg-orange-500', type: 'expense' },

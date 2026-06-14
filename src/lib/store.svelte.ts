@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { type Category, type Transaction, type Goal, defaultCategories, type Account, type Budget, type RecurringTransaction } from './schema';
+import { type Category, type Transaction, type Goal, defaultCategories, type Account, type Budget, type RecurringTransaction, type Debt } from './schema';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -10,6 +10,7 @@ export class FinanceStore {
 	accounts = $state<Account[]>([{ id: 'default-cash', name: 'Efectivo General', type: 'cash', balance: 0, color: 'bg-green-500' }]);
 	budgets = $state<Budget[]>([]);
 	recurringTransactions = $state<RecurringTransaction[]>([]);
+	debts = $state<Debt[]>([]);
 
 	constructor() {
 		if (browser) {
@@ -19,12 +20,14 @@ export class FinanceStore {
 			const storedAccounts = localStorage.getItem('finances_accounts');
 			const storedBudgets = localStorage.getItem('finances_budgets');
 			const storedRecurring = localStorage.getItem('finances_recurring');
+			const storedDebts = localStorage.getItem('finances_debts');
 
 			if (storedCategories) this.categories = JSON.parse(storedCategories);
 			if (storedGoals) this.goals = JSON.parse(storedGoals);
 			if (storedAccounts) this.accounts = JSON.parse(storedAccounts);
 			if (storedBudgets) this.budgets = JSON.parse(storedBudgets);
 			if (storedRecurring) this.recurringTransactions = JSON.parse(storedRecurring);
+			if (storedDebts) this.debts = JSON.parse(storedDebts);
 
 			if (storedTransactions) {
 				const parsedTx = JSON.parse(storedTransactions);
@@ -45,6 +48,7 @@ export class FinanceStore {
 				$effect(() => { localStorage.setItem('finances_accounts', JSON.stringify(this.accounts)); });
 				$effect(() => { localStorage.setItem('finances_budgets', JSON.stringify(this.budgets)); });
 				$effect(() => { localStorage.setItem('finances_recurring', JSON.stringify(this.recurringTransactions)); });
+				$effect(() => { localStorage.setItem('finances_debts', JSON.stringify(this.debts)); });
 			});
 		}
 	}
@@ -162,6 +166,43 @@ export class FinanceStore {
 			spent,
 			percent: Math.round((spent / budget.amount) * 100)
 		};
+	}
+
+	addDebt(debt: Debt) {
+		this.debts.push(debt);
+	}
+
+	deleteDebt(id: string) {
+		this.debts = this.debts.filter(d => d.id !== id);
+	}
+
+	payDebt(debtId: string, amount: number, accountId: string) {
+		const debt = this.debts.find(d => d.id === debtId);
+		if (!debt) return;
+
+		// Actualizar progreso de la deuda
+		debt.paidAmount += amount;
+		if (debt.paidAmount >= debt.totalAmount) {
+			debt.paidAmount = debt.totalAmount;
+			debt.status = 'paid';
+		}
+
+		// Crear transacción real
+		// Si es 'i_owe' (yo debo), hacer el pago es un gasto.
+		// Si es 'owed_to_me' (me deben), recibir el pago es un ingreso.
+		const isExpense = debt.type === 'i_owe';
+		
+		const newTx: Transaction = {
+			id: crypto.randomUUID(),
+			date: new Date().toISOString(),
+			amount: amount,
+			categoryId: isExpense ? '1' : '6', // Usa categorías por defecto de Gasto(1)/Ingreso(6) (Idealmente deberíamos tener una categoría 'Deuda' fija)
+			accountId: accountId,
+			note: `Abono a deuda: ${debt.contactName}`,
+			type: isExpense ? 'expense' : 'income'
+		};
+
+		this.addTransaction(newTx);
 	}
 
 	addGoal(goal: Goal) {
