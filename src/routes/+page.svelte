@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
-	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins, CreditCard, Wifi } from '@lucide/svelte';
 	import Chart from '$lib/components/Chart.svelte';
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 
@@ -45,26 +45,39 @@
 	>
 		<span class="text-sm font-medium" style="color: var(--color-text-secondary);">Saldo Total (Todas las cuentas)</span>
 		<span
-			class="text-4xl font-bold"
-			style="color: {summary.balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};"
+			class="text-5xl font-extrabold tracking-tight"
+			style="background: {summary.balance >= 0 ? 'linear-gradient(135deg, var(--color-primary), var(--color-accent))' : 'linear-gradient(135deg, var(--color-danger), #f43f5e)'}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
 		>
 			S/ {summary.balance.toFixed(2)}
 		</span>
 	</div>
 
-	<!-- Cuentas / Billeteras -->
-	<div class="flex gap-4 overflow-x-auto pb-2 snap-x" style="scrollbar-width: none; -ms-overflow-style: none;">
+	<!-- Cuentas / Billeteras (Tarjetas Realistas) -->
+	<div class="flex gap-4 overflow-x-auto pb-4 pt-2 snap-x" style="scrollbar-width: none; -ms-overflow-style: none;">
 		{#each financeStore.accounts as account}
 			<div 
-				class="min-w-[160px] flex-shrink-0 snap-start rounded-2xl p-5 shadow-sm text-white relative overflow-hidden"
-				style="background: {account.type === 'bank' ? 'var(--color-primary)' : account.type === 'credit' ? 'var(--color-danger)' : 'var(--color-success)'};"
+				class="min-w-[260px] flex-shrink-0 snap-start rounded-3xl p-5 shadow-lg text-white relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl"
+				style="background: {account.type === 'bank' ? 'linear-gradient(135deg, #1e3a8a, #3b82f6)' : account.type === 'credit' ? 'linear-gradient(135deg, #7f1d1d, #ef4444)' : 'linear-gradient(135deg, #14532d, #22c55e)'}; box-shadow: 0 10px 25px -5px {account.type === 'bank' ? 'rgba(59, 130, 246, 0.4)' : account.type === 'credit' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(34, 197, 94, 0.4)'};"
 			>
-				<div class="absolute -right-4 -top-4 rounded-full bg-white opacity-10" style="width: 64px; height: 64px;"></div>
-				<div class="mb-2 flex items-center justify-between relative z-10">
-					<span class="text-sm font-medium opacity-90">{account.name}</span>
-					<Wallet size={16} />
+				<!-- Decoración Glassmorphism (Círculos difusos) -->
+				<div class="absolute -right-10 -top-10 rounded-full bg-white opacity-10 blur-xl" style="width: 120px; height: 120px;"></div>
+				<div class="absolute -left-10 -bottom-10 rounded-full bg-white opacity-5 blur-xl" style="width: 100px; height: 100px;"></div>
+				
+				<div class="mb-4 flex items-start justify-between relative z-10">
+					<div>
+						<span class="text-xs font-medium uppercase tracking-widest opacity-80">{account.name}</span>
+						<div class="mt-1 flex items-center gap-2 opacity-90">
+							<div class="h-6 w-8 rounded bg-yellow-400/80 shadow-sm border border-yellow-300/50"></div> <!-- Chip sim -->
+							<Wifi size={18} class="rotate-90" />
+						</div>
+					</div>
+					<CreditCard size={24} class="opacity-80" />
 				</div>
-				<div class="text-xl font-bold relative z-10">S/ {account.balance.toFixed(2)}</div>
+				
+				<div class="mt-4 relative z-10">
+					<div class="text-sm font-light opacity-80 mb-1">Saldo Disponible</div>
+					<div class="text-3xl font-extrabold tracking-tight">S/ {account.balance.toFixed(2)}</div>
+				</div>
 			</div>
 		{/each}
 	</div>

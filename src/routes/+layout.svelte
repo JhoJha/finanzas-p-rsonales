@@ -6,10 +6,43 @@
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
 	import ToastProvider from '$lib/components/ToastProvider.svelte';
 	import { themeStore } from '$lib/theme.svelte';
+	import { Download } from '@lucide/svelte';
 
 	let { children } = $props();
 
 	let isDark = $derived(themeStore.current === 'dark');
+
+	let deferredPrompt = $state<any>(null);
+	let showInstallBanner = $state(false);
+
+	$effect(() => {
+		const handleBeforeInstallPrompt = (e: any) => {
+			e.preventDefault();
+			deferredPrompt = e;
+			showInstallBanner = true;
+		};
+
+		window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+		window.addEventListener('appinstalled', () => {
+			showInstallBanner = false;
+			deferredPrompt = null;
+		});
+
+		return () => {
+			window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+		};
+	});
+
+	async function installPWA() {
+		if (deferredPrompt) {
+			deferredPrompt.prompt();
+			const { outcome } = await deferredPrompt.userChoice;
+			if (outcome === 'accepted') {
+				showInstallBanner = false;
+			}
+			deferredPrompt = null;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -44,15 +77,33 @@
 		<ThemePicker />
 	</header>
 
+	{#if showInstallBanner}
+		<div class="fixed top-20 left-4 right-4 z-50 animate-slide-down rounded-2xl p-4 shadow-lg flex items-center justify-between" style="background-color: var(--color-surface); border: 1px solid var(--color-primary);">
+			<div class="flex items-center gap-3">
+				<div class="rounded-xl p-2" style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+					<Download size={20} />
+				</div>
+				<div>
+					<p class="text-sm font-bold" style="color: var(--color-text);">Instalar App</p>
+					<p class="text-xs" style="color: var(--color-text-secondary);">Acceso rápido y sin conexión</p>
+				</div>
+			</div>
+			<div class="flex gap-2">
+				<button onclick={() => (showInstallBanner = false)} class="px-2 text-xs font-medium" style="color: var(--color-text-secondary);">Quizás luego</button>
+				<button onclick={installPWA} class="rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm" style="background-color: var(--color-primary);">Instalar</button>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Main content (con margen negativo para solaparse con el header) -->
-	<main class="relative -mt-12 flex-1 overflow-y-auto px-4 pb-28">
+	<main class="relative -mt-12 flex-1 overflow-y-auto px-4 pb-32">
 		{@render children()}
 	</main>
 
 	<!-- Bottom Navigation -->
 	<nav
-		class="fixed bottom-0 left-0 right-0 z-50 flex justify-between border-t px-6 pb-6 pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-colors"
-		style="background-color: {isDark ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)'}; border-color: var(--color-border);"
+		class="fixed bottom-4 left-4 right-4 z-50 flex justify-between rounded-3xl px-6 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.1)] backdrop-blur-2xl transition-all border"
+		style="background-color: {isDark ? 'rgba(30, 41, 59, 0.75)' : 'rgba(255, 255, 255, 0.8)'}; border-color: {isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'};"
 	>
 		<a
 			href="/"
