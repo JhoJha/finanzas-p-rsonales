@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
-	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins, CreditCard, Wifi } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins, CreditCard, Wifi, Heart, Zap, DollarSign } from '@lucide/svelte';
 	import Chart from '$lib/components/Chart.svelte';
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 
 	let summary = $derived(financeStore.summary);
+	let health = $derived(financeStore.getMonthlyHealthMetrics());
 
 	// Datos para gráfico pastel de gastos
 	let expensesByCategory = $derived(financeStore.getExpensesByCategory('all'));
@@ -104,6 +105,49 @@
 			<div class="text-lg font-bold" style="color: var(--color-text);">S/ {summary.expenses.toFixed(2)}</div>
 		</div>
 	</div>
+
+	<!-- Salud Financiera del Mes -->
+	{#if health.monthIncome > 0}
+		<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
+			<h2 class="mb-3 flex items-center gap-2 text-sm font-bold" style="color: var(--color-text);">
+				<Heart size={16} style="color: var(--color-danger);" />
+				Salud Financiera — Este Mes
+			</h2>
+			<div class="grid grid-cols-3 gap-3">
+				<!-- Tasa de ahorro -->
+				<div class="flex flex-col items-center justify-center rounded-xl p-3" style="background-color: var(--color-bg);">
+					<div class="text-xl font-extrabold" style="color: {health.savingsRate >= 20 ? 'var(--color-success)' : health.savingsRate >= 0 ? 'var(--color-warning, #f59e0b)' : 'var(--color-danger)'};"
+					>{health.savingsRate}%</div>
+					<div class="mt-0.5 text-center text-xs" style="color: var(--color-text-secondary);">Tasa de ahorro</div>
+				</div>
+				<!-- Proyección cierre de mes -->
+				<div class="flex flex-col items-center justify-center rounded-xl p-3" style="background-color: var(--color-bg);">
+					<div class="text-sm font-extrabold leading-tight" style="color: {health.projectedNet >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};"
+					>{health.projectedNet >= 0 ? '' : '-'}S/ {Math.abs(health.projectedNet).toFixed(0)}</div>
+					<div class="mt-0.5 text-center text-xs" style="color: var(--color-text-secondary);">Proyección<br/>fin de mes</div>
+				</div>
+				<!-- Presupuesto diario -->
+				<div class="flex flex-col items-center justify-center rounded-xl p-3" style="background-color: var(--color-bg);">
+					<div class="text-sm font-extrabold leading-tight" style="color: {health.dailyBudgetLeft >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};"
+					>S/ {Math.abs(health.dailyBudgetLeft).toFixed(0)}</div>
+					<div class="mt-0.5 text-center text-xs" style="color: var(--color-text-secondary);">Disponible<br/>/día ({health.daysLeft}d)</div>
+				</div>
+			</div>
+			<!-- Barra de tasa de ahorro -->
+			<div class="mt-3 h-2 w-full overflow-hidden rounded-full" style="background-color: var(--color-bg);">
+				<div
+					class="h-full rounded-full transition-all duration-700"
+					style="width: {Math.min(Math.max(health.savingsRate, 0), 100)}%; background-color: {health.savingsRate >= 20 ? 'var(--color-success)' : health.savingsRate >= 0 ? 'var(--color-warning, #f59e0b)' : 'var(--color-danger)'};"
+				></div>
+			</div>
+			<p class="mt-1.5 text-xs" style="color: var(--color-text-secondary);">
+				{#if health.savingsRate >= 20}✅ ¡Excelente! Estás ahorrando más del 20% de tus ingresos.
+				{:else if health.savingsRate >= 0}⚠️ Tasa de ahorro baja. Intenta reducir gastos.
+				{:else}🚨 Estás gastando más de lo que ingresas este mes.
+				{/if}
+			</p>
+		</div>
+	{/if}
 
 	<!-- Herramientas Avanzadas -->
 	<div class="grid grid-cols-2 gap-4">

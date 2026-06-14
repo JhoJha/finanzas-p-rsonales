@@ -3,11 +3,12 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import type { Goal } from '$lib/schema';
 	import { INTERNAL_CATEGORY_SAVINGS } from '$lib/schema';
-	import { Plus, Target, CheckCircle2, Trash2, Download, Upload, PiggyBank, X } from '@lucide/svelte';
+	import { Plus, Target, CheckCircle2, Trash2, Download, Upload, PiggyBank, X, Calendar } from '@lucide/svelte';
 
 	let showingNewGoal = $state(false);
 	let newGoalName = $state('');
 	let newGoalAmount = $state('');
+	let newGoalDeadline = $state(''); // YYYY-MM-DD
 
 	// Modal para abonar
 	let abonarGoalId = $state<string | null>(null);
@@ -35,13 +36,15 @@
 			id: crypto.randomUUID(),
 			name: newGoalName,
 			targetAmount: parseFloat(newGoalAmount),
-			currentAmount: 0
+			currentAmount: 0,
+			deadline: newGoalDeadline ? new Date(newGoalDeadline).toISOString() : undefined
 		};
 		financeStore.addGoal(goal);
 
 		showingNewGoal = false;
 		newGoalName = '';
 		newGoalAmount = '';
+		newGoalDeadline = '';
 		toastStore.add(`🎯 Meta "${goal.name}" creada`);
 	}
 
@@ -164,6 +167,17 @@
 					class="w-full rounded-xl p-3 text-sm outline-none transition-all"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				/>
+				<div class="flex items-center gap-2">
+					<Calendar size={14} style="color: var(--color-text-secondary); flex-shrink: 0;" />
+					<input
+						type="date"
+						bind:value={newGoalDeadline}
+						min={new Date().toISOString().split('T')[0]}
+						class="flex-1 rounded-xl p-3 text-xs outline-none transition-all"
+						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+						placeholder="Fecha límite (opcional)"
+					/>
+				</div>
 				<div class="flex gap-2">
 					<button
 						onclick={() => (showingNewGoal = false)}
@@ -235,6 +249,23 @@
 						>
 							{percent}%
 						</p>
+						<!-- Fecha límite e info de aporte diario -->
+						{#if goal.deadline && percent < 100}
+							{@const deadlineDate = new Date(goal.deadline)}
+							{@const daysLeft = Math.max(0, Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000))}
+							{@const remaining = goal.targetAmount - goal.currentAmount}
+							{@const dailyNeeded = daysLeft > 0 ? remaining / daysLeft : null}
+							<div class="mt-2 flex items-center justify-between rounded-lg px-3 py-2" style="background-color: {daysLeft <= 7 ? 'color-mix(in srgb, var(--color-danger) 10%, transparent)' : 'var(--color-bg)'}; border: 1px solid {daysLeft <= 7 ? 'var(--color-danger)' : 'var(--color-border)'};">
+								<div class="flex items-center gap-1.5">
+									<Calendar size={12} style="color: {daysLeft <= 7 ? 'var(--color-danger)' : 'var(--color-text-secondary)'};" />
+									<span class="text-xs font-medium" style="color: {daysLeft <= 7 ? 'var(--color-danger)' : 'var(--color-text-secondary)'};"
+									>{daysLeft === 0 ? '¡Vence hoy!' : `${daysLeft} días`}</span>
+								</div>
+								{#if dailyNeeded !== null}
+									<span class="text-xs font-semibold" style="color: var(--color-primary);">S/ {dailyNeeded.toFixed(0)}/día</span>
+								{/if}
+							</div>
+						{/if}
 					</div>
 
 					{#if percent < 100}

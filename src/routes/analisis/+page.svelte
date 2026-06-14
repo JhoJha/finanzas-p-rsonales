@@ -6,13 +6,25 @@
 	import { TrendingUp, AlertTriangle, ArrowUp, ArrowDown, Minus } from '@lucide/svelte';
 
 	let selectedPeriod = $state<Period>('all');
+	let searchQuery = $state('');
 
-	// Datos con filtro
+	// Datos con filtro de período
 	let filteredTransactions = $derived(
 		selectedPeriod === 'all'
 			? [...financeStore.transactions].reverse()
 			: [...financeStore.getTransactionsByPeriod(selectedPeriod)].reverse()
 	);
+
+	// Filtro adicional por búsqueda de texto
+	let displayedTransactions = $derived(() => {
+		if (!searchQuery.trim()) return filteredTransactions;
+		const q = searchQuery.toLowerCase().trim();
+		return filteredTransactions.filter(t => {
+			const note = (t.note || '').toLowerCase();
+			const catName = (financeStore.categories.find(c => c.id === t.categoryId)?.name || '').toLowerCase();
+			return note.includes(q) || catName.includes(q);
+		});
+	});
 
 	let summary = $derived({
 		income: filteredTransactions.filter((t) => t.type === 'income').reduce((a, b) => a + b.amount, 0),
@@ -224,13 +236,33 @@
 	<!-- Historial de transacciones filtradas -->
 	{#if hasData}
 		<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
-			<h2 class="mb-4 flex items-center gap-2 text-base font-semibold" style="color: var(--color-text);">
-				📜 Historial de transacciones
-				<span class="rounded-full px-2 py-0.5 text-xs font-bold text-white" style="background-color: var(--color-primary);">
-					{filteredTransactions.length}
-				</span>
-			</h2>
-			<TransactionHistory transactions={filteredTransactions} />
+			<div class="mb-4 flex items-center justify-between gap-3">
+				<h2 class="flex items-center gap-2 text-base font-semibold" style="color: var(--color-text);">
+					📜 Historial
+					<span class="rounded-full px-2 py-0.5 text-xs font-bold text-white" style="background-color: var(--color-primary);">
+						{displayedTransactions().length}
+					</span>
+				</h2>
+			</div>
+			<!-- Buscador -->
+			<div class="relative mb-3">
+				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color: var(--color-text-secondary);">🔍</span>
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="Buscar por nota o categoría..."
+					class="w-full rounded-xl py-2.5 pl-9 pr-3 text-sm outline-none transition-all focus:ring-2"
+					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+				/>
+				{#if searchQuery}
+					<button
+						onclick={() => (searchQuery = '')}
+						class="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
+						style="color: var(--color-text-secondary);"
+					>✕</button>
+				{/if}
+			</div>
+			<TransactionHistory transactions={displayedTransactions()} />
 		</div>
 	{/if}
 </div>

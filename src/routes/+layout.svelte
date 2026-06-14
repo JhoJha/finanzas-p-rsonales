@@ -7,6 +7,8 @@
 	import ToastProvider from '$lib/components/ToastProvider.svelte';
 	import { themeStore } from '$lib/theme.svelte';
 	import { Download } from '@lucide/svelte';
+	import { financeStore } from '$lib/store.svelte';
+	import { toastStore } from '$lib/toast.svelte';
 
 	let { children } = $props();
 
@@ -31,6 +33,24 @@
 		return () => {
 			window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 		};
+	});
+
+	// Alerta proactiva de deudas vencidas (una vez por sesión)
+	$effect(() => {
+		const alreadyAlerted = sessionStorage.getItem('debt_alert_shown');
+		if (alreadyAlerted) return;
+
+		const overdue = financeStore.getOverdueDebts();
+		if (overdue.length > 0) {
+			sessionStorage.setItem('debt_alert_shown', '1');
+			setTimeout(() => {
+				toastStore.add(
+					`⚠️ Tienes ${overdue.length} deuda${overdue.length > 1 ? 's' : ''} vencida${overdue.length > 1 ? 's' : ''}. Revisa la sección Deudas.`,
+					'error',
+					5000
+				);
+			}, 1000);
+		}
 	});
 
 	async function installPWA() {

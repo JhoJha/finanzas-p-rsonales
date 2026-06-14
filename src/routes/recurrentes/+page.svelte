@@ -109,6 +109,7 @@
 				>
 					<option value="daily">Diario</option>
 					<option value="weekly">Semanal</option>
+					<option value="biweekly">Quincenal (cada 14 días)</option>
 					<option value="monthly">Mensual</option>
 				</select>
 			</div>
@@ -218,7 +219,7 @@
 							{rt.note || (rt.type === 'transfer' ? 'Transferencia recurrente' : category?.name)}
 						</div>
 						<div class="text-xs" style="color: var(--color-text-secondary);">
-							Próximo: {formatDate(rt.nextDate)} • {rt.frequency === 'daily' ? 'Diario' : rt.frequency === 'weekly' ? 'Semanal' : 'Mensual'}
+							Próximo: {formatDate(rt.nextDate)} • {rt.frequency === 'daily' ? 'Diario' : rt.frequency === 'weekly' ? 'Semanal' : rt.frequency === 'biweekly' ? 'Quincenal' : 'Mensual'}
 						</div>
 					</div>
 				</div>

@@ -54,7 +54,7 @@ export const RecurringTransactionSchema = z.object({
 	toAccountId: z.string().optional(),
 	note: z.string().optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
-	frequency: z.enum(['daily', 'weekly', 'monthly']),
+	frequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly']),
 	nextDate: z.string()
 });
 

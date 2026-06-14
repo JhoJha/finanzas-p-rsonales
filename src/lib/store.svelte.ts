@@ -102,6 +102,7 @@ export class FinanceStore {
 				
 				if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
 				else if (rt.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+				else if (rt.frequency === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
 				else if (rt.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
 			}
 			return { ...rt, nextDate: nextDate.toISOString() };
@@ -388,6 +389,59 @@ export class FinanceStore {
 		const diffPercent = previous > 0 ? Math.round((diff / previous) * 100) : (current > 0 ? 100 : 0);
 
 		return { current, previous, diff, diffPercent };
+	}
+
+	/** Indicadores de salud financiera del mes actual */
+	getMonthlyHealthMetrics() {
+		const now = new Date();
+		const month = now.getMonth();
+		const year = now.getFullYear();
+		const daysInMonth = new Date(year, month + 1, 0).getDate();
+		const dayOfMonth = now.getDate();
+		const daysLeft = daysInMonth - dayOfMonth;
+
+		const monthTx = this.transactions.filter(t => {
+			const d = new Date(t.date);
+			return d.getMonth() === month && d.getFullYear() === year;
+		});
+
+		const monthIncome = monthTx.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
+		const monthExpenses = monthTx.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
+		const monthNet = monthIncome - monthExpenses;
+
+		// Tasa de ahorro: (ingresos - gastos) / ingresos * 100
+		const savingsRate = monthIncome > 0 ? Math.round((monthNet / monthIncome) * 100) : 0;
+
+		// Proyección al final del mes basada en el ritmo diario de gastos
+		const dailyBurnRate = dayOfMonth > 0 ? monthExpenses / dayOfMonth : 0;
+		const projectedExpenses = dailyBurnRate * daysInMonth;
+		const projectedNet = monthIncome - projectedExpenses;
+
+		// Promedio diario disponible para los días restantes
+		const dailyBudgetLeft = daysLeft > 0 ? monthNet / daysLeft : 0;
+
+		return {
+			monthIncome,
+			monthExpenses,
+			monthNet,
+			savingsRate,
+			projectedExpenses,
+			projectedNet,
+			dailyBudgetLeft,
+			daysLeft,
+			dayOfMonth
+		};
+	}
+
+	/** Deudas vencidas (dueDate pasada y pendientes) */
+	getOverdueDebts() {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		return this.debts.filter(d =>
+			d.status === 'pending' &&
+			d.dueDate &&
+			new Date(d.dueDate) < today
+		);
 	}
 
 	/** Exportar datos como JSON (backup completo) */
