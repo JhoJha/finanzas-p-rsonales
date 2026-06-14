@@ -117,7 +117,13 @@
 
 	<!-- Main content (con margen negativo para solaparse con el header) -->
 	<main class="relative -mt-12 flex-1 overflow-y-auto px-4 pb-32">
-		{@render children()}
+		{#if financeStore.isReady}
+			{@render children()}
+		{:else}
+			<div class="flex h-64 items-center justify-center">
+				<div class="h-10 w-10 animate-spin rounded-full border-4" style="border-color: var(--color-border); border-top-color: var(--color-primary);"></div>
+			</div>
+		{/if}
 	</main>
 
 	<!-- Bottom Navigation -->

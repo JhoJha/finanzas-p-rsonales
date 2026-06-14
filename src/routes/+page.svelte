@@ -3,6 +3,7 @@
 	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins, CreditCard, Wifi, Heart, Zap, DollarSign } from '@lucide/svelte';
 	import Chart from '$lib/components/Chart.svelte';
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
+	import { getColorHex } from '$lib/utils/colors';
 
 	let summary = $derived(financeStore.summary);
 	let health = $derived(financeStore.getMonthlyHealthMetrics());
@@ -13,23 +14,7 @@
 	let pieLabels = $derived(expensesByCategory.map((c) => c.name));
 	let pieData = $derived(expensesByCategory.map((c) => c.amount));
 	let pieColors = $derived(
-		expensesByCategory.map((c) => {
-			const colorMap: Record<string, string> = {
-				'orange-500': '#f97316',
-				'blue-500': '#3b82f6',
-				'green-500': '#22c55e',
-				'purple-500': '#a855f7',
-				'pink-500': '#ec4899',
-				'yellow-500': '#eab308',
-				'gray-500': '#6b7280',
-				'red-500': '#ef4444'
-			};
-			// Extraer el color del string 'bg-xxx'
-			for (const [key, val] of Object.entries(colorMap)) {
-				if (c.color.includes(key)) return val;
-			}
-			return '#6b7280';
-		})
+		expensesByCategory.map((c) => getColorHex(c.color))
 	);
 
 	// Últimas 5 transacciones

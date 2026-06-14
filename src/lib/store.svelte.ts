@@ -5,6 +5,7 @@ import { toastStore } from './toast.svelte';
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
 export class FinanceStore {
+	isReady = $state(false);
 	categories = $state<Category[]>(defaultCategories);
 	transactions = $state<Transaction[]>([]);
 	goals = $state<Goal[]>([]);
@@ -58,22 +59,19 @@ export class FinanceStore {
 				if (storedDebts) this.debts = JSON.parse(storedDebts).filter((d: any) => DebtSchema.safeParse(d).success);
 			} catch (e) { console.error('Error parseando debts', e); }
 
-			try {
-				if (storedTransactions) {
-					const parsedTx = JSON.parse(storedTransactions);
-					this.transactions = parsedTx.map((t: any) => ({
-						...t,
-						accountId: t.accountId || 'default-cash'
-					})).filter((t: any) => TransactionSchema.safeParse(t).success);
-				}
-			} catch (e) { console.error('Error parseando transactions', e); }
-
-			this.recalculateBalances();
-			this.processRecurringTransactions();
+			// Quitamos la carga síncrona de transacciones de aquí para hacerla asíncrona
+			this.initIndexedDB();
 
 			// Subscribe to changes to serialize to local storage
 			$effect.root(() => {
-				$effect(() => { localStorage.setItem('finances_transactions', JSON.stringify(this.transactions)); });
+				$effect(() => { 
+					if (this.isReady) {
+						import('idb-keyval').then(({ set }) => {
+							// guardamos el snapshot para evitar problemas de reactividad
+							set('finances_transactions', $state.snapshot(this.transactions));
+						});
+					}
+				});
 				$effect(() => { localStorage.setItem('finances_categories', JSON.stringify(this.categories)); });
 				$effect(() => { localStorage.setItem('finances_goals', JSON.stringify(this.goals)); });
 				$effect(() => { localStorage.setItem('finances_accounts', JSON.stringify(this.accounts)); });
@@ -82,6 +80,38 @@ export class FinanceStore {
 				$effect(() => { localStorage.setItem('finances_debts', JSON.stringify(this.debts)); });
 			});
 		}
+	}
+
+	async initIndexedDB() {
+		try {
+			const { get, set } = await import('idb-keyval');
+			const storedTransactions = await get('finances_transactions');
+			
+			if (storedTransactions && Array.isArray(storedTransactions)) {
+				this.transactions = storedTransactions.map((t: any) => ({
+					...t,
+					accountId: t.accountId || 'default-cash'
+				})).filter((t: any) => TransactionSchema.safeParse(t).success);
+			} else {
+				// Migración desde localStorage si existe
+				const lsTx = localStorage.getItem('finances_transactions');
+				if (lsTx) {
+					const parsedTx = JSON.parse(lsTx);
+					this.transactions = parsedTx.map((t: any) => ({
+						...t,
+						accountId: t.accountId || 'default-cash'
+					})).filter((t: any) => TransactionSchema.safeParse(t).success);
+					set('finances_transactions', $state.snapshot(this.transactions));
+					localStorage.removeItem('finances_transactions');
+				}
+			}
+		} catch (e) {
+			console.error('Error cargando transactions de IDB', e);
+		}
+		
+		this.recalculateBalances();
+		this.processRecurringTransactions();
+		this.isReady = true;
 	}
 
 	recalculateBalances() {
@@ -105,14 +135,26 @@ export class FinanceStore {
 		this.accounts = this.accounts.map(a => ({ ...a, balance: balances[a.id] || 0 }));
 	}
 
+	private adjustBalance(tx: Transaction, multiplier: 1 | -1) {
+		const index = this.accounts.findIndex(a => a.id === tx.accountId);
+		if (index !== -1) {
+			if (tx.type === 'income') this.accounts[index].balance += tx.amount * multiplier;
+			if (tx.type === 'expense') this.accounts[index].balance -= tx.amount * multiplier;
+			if (tx.type === 'transfer' && tx.toAccountId) {
+				this.accounts[index].balance -= tx.amount * multiplier;
+				const toIndex = this.accounts.findIndex(a => a.id === tx.toAccountId);
+				if (toIndex !== -1) this.accounts[toIndex].balance += tx.amount * multiplier;
+			}
+		}
+	}
+
 	processRecurringTransactions() {
 		const now = new Date();
-		let addedNew = false;
 
 		this.recurringTransactions = this.recurringTransactions.map(rt => {
 			let nextDate = new Date(rt.nextDate);
 			while (nextDate <= now) {
-				this.transactions.push({
+				this.addTransaction({
 					id: crypto.randomUUID(),
 					date: nextDate.toISOString(),
 					amount: rt.amount,
@@ -122,7 +164,6 @@ export class FinanceStore {
 					note: rt.note,
 					type: rt.type
 				});
-				addedNew = true;
 				
 				if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
 				else if (rt.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
@@ -131,25 +172,28 @@ export class FinanceStore {
 			}
 			return { ...rt, nextDate: nextDate.toISOString() };
 		});
-
-		if (addedNew) this.recalculateBalances();
 	}
 
 	addTransaction(transaction: Transaction) {
 		this.transactions.push(transaction);
-		this.recalculateBalances();
+		this.adjustBalance(transaction, 1);
 	}
 
 	deleteTransaction(id: string) {
-		this.transactions = this.transactions.filter((t) => t.id !== id);
-		this.recalculateBalances();
+		const tx = this.transactions.find(t => t.id === id);
+		if (tx) {
+			this.transactions = this.transactions.filter((t) => t.id !== id);
+			this.adjustBalance(tx, -1);
+		}
 	}
 
 	updateTransaction(id: string, data: Partial<Transaction>) {
 		const index = this.transactions.findIndex((t) => t.id === id);
 		if (index !== -1) {
-			this.transactions[index] = { ...this.transactions[index], ...data };
-			this.recalculateBalances();
+			const oldTx = this.transactions[index];
+			this.adjustBalance(oldTx, -1);
+			this.transactions[index] = { ...oldTx, ...data };
+			this.adjustBalance(this.transactions[index], 1);
 		}
 	}
 

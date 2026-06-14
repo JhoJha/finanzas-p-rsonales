@@ -104,7 +104,7 @@
 			name: newCatName.trim(),
 			icon: '🏷️',
 			color: type === 'expense' ? 'bg-red-500' : 'bg-green-500',
-			type
+			type: type as 'expense' | 'income'
 		};
 		financeStore.categories.push(newCat);
 		vibrate(10);
