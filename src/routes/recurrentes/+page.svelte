@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
-	import { Repeat, Plus, Trash2 } from '@lucide/svelte';
+	import { Repeat, Plus, Trash2, Check, X } from '@lucide/svelte';
 
 	let type = $state<'expense' | 'income' | 'transfer'>('expense');
+	let pendingList = $derived(financeStore.getPendingRecurringTransactions());
 	let amount = $state('');
 	let categoryId = $state(financeStore.categories.filter(c => c.type === 'expense')[0]?.id || '1');
 	let accountId = $state(financeStore.accounts[0]?.id || 'default-cash');
@@ -196,8 +197,73 @@
 		</button>
 	</div>
 
+	<!-- Pendientes de Aprobación -->
+	{#if pendingList.length > 0}
+		<div class="space-y-3 mb-6">
+			<h2 class="text-sm font-bold text-warning flex items-center gap-2">
+				<span class="relative flex h-3 w-3">
+				  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75"></span>
+				  <span class="relative inline-flex rounded-full h-3 w-3 bg-warning"></span>
+				</span>
+				Pendientes de Aprobación
+			</h2>
+			{#each pendingList as p}
+				{@const category = financeStore.categories.find(c => c.id === p.tx.categoryId)}
+				{@const account = financeStore.accounts.find(a => a.id === p.tx.accountId)}
+				
+				<div class="flex items-center justify-between rounded-2xl p-4 shadow-sm border border-warning/50 bg-warning/10">
+					<div class="flex items-center gap-3">
+						<div 
+							class="flex h-10 w-10 items-center justify-center rounded-full text-white"
+							style="background-color: {p.tx.type === 'expense' ? 'var(--color-danger)' : p.tx.type === 'income' ? 'var(--color-success)' : 'var(--color-primary)'};"
+						>
+							{#if p.tx.type === 'transfer'}
+								🔄
+							{:else}
+								{category?.icon || '💰'}
+							{/if}
+						</div>
+						<div>
+							<div class="font-medium" style="color: var(--color-text);">
+								{p.tx.note || (p.tx.type === 'transfer' ? 'Transferencia' : category?.name)}
+							</div>
+							<div class="text-xs" style="color: var(--color-text-secondary);">
+								Fecha: {formatDate(p.tx.date)}
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center gap-3">
+						<div class="text-right">
+							<span class="font-bold" style="color: {p.tx.type === 'expense' ? 'var(--color-danger)' : p.tx.type === 'income' ? 'var(--color-success)' : 'var(--color-text)'};">
+								{p.tx.type === 'expense' ? '-' : p.tx.type === 'income' ? '+' : ''}{financeStore.formatCurrency(p.tx.amount)}
+							</span>
+							<div class="text-xs opacity-70">{account?.name || 'Cuenta'}</div>
+						</div>
+						<div class="flex flex-col gap-1 sm:flex-row">
+							<button 
+								onclick={() => financeStore.approvePendingRecurring(p.rtId, p.tx, true)}
+								class="flex h-8 w-8 items-center justify-center rounded-full bg-success text-white shadow-sm transition-transform active:scale-90"
+								aria-label="Aprobar"
+							>
+								<Check size={16} />
+							</button>
+							<button 
+								onclick={() => financeStore.approvePendingRecurring(p.rtId, p.tx, false)}
+								class="flex h-8 w-8 items-center justify-center rounded-full bg-danger text-white shadow-sm transition-transform active:scale-90"
+								aria-label="Rechazar"
+							>
+								<X size={16} />
+							</button>
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
 	<!-- Lista -->
 	<div class="space-y-3">
+		<h2 class="text-sm font-bold text-text-secondary">Activas</h2>
 		{#each financeStore.recurringTransactions as rt}
 			{@const category = financeStore.categories.find(c => c.id === rt.categoryId)}
 			{@const account = financeStore.accounts.find(a => a.id === rt.accountId)}

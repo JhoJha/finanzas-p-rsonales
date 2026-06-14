@@ -69,7 +69,7 @@
 
 	<!-- Stats Grid -->
 	<div class="grid grid-cols-2 gap-4">
-		<div class="rounded-2xl p-4 shadow-sm bg-surface">
+		<div class="rounded-2xl p-4 shadow-sm bg-surface transition-all hover:shadow-md hover:-translate-y-1">
 			<div class="mb-2 flex items-center justify-between">
 				<div class="rounded-full p-2 bg-success/20 text-success">
 					<ArrowUp size={20} />
@@ -79,7 +79,7 @@
 			<div class="text-lg font-bold text-text">{financeStore.formatCurrency(summary.income)}</div>
 		</div>
 
-		<div class="rounded-2xl p-4 shadow-sm bg-surface">
+		<div class="rounded-2xl p-4 shadow-sm bg-surface transition-all hover:shadow-md hover:-translate-y-1">
 			<div class="mb-2 flex items-center justify-between">
 				<div class="rounded-full p-2 bg-danger/20 text-danger">
 					<ArrowDown size={20} />
@@ -135,26 +135,26 @@
 
 	<!-- Herramientas Avanzadas -->
 	<div class="grid grid-cols-2 gap-4">
-		<a href="/presupuestos" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
-			<div class="w-fit rounded-full p-2 bg-primary/15 text-primary">
+		<a href="/presupuestos" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-primary/15 text-primary transition-transform group-hover:scale-110">
 				<Target size={20} />
 			</div>
 			<span class="text-sm font-semibold text-text">Presupuestos</span>
 		</a>
-		<a href="/recurrentes" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
-			<div class="w-fit rounded-full p-2 bg-primary/15 text-primary">
+		<a href="/recurrentes" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-primary/15 text-primary transition-transform group-hover:scale-110">
 				<Repeat size={20} />
 			</div>
 			<span class="text-sm font-semibold text-text">Recurrentes</span>
 		</a>
-		<a href="/deudas" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
-			<div class="w-fit rounded-full p-2 bg-warning/15 text-warning">
+		<a href="/deudas" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-warning/15 text-warning transition-transform group-hover:scale-110">
 				<HandCoins size={20} />
 			</div>
 			<span class="text-sm font-semibold text-text">Deudas</span>
 		</a>
-		<a href="/calendario" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95 bg-surface">
-			<div class="w-fit rounded-full p-2 bg-success/15 text-success">
+		<a href="/calendario" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-success/15 text-success transition-transform group-hover:scale-110">
 				<CalendarIcon size={20} />
 			</div>
 			<span class="text-sm font-semibold text-text">Calendario</span>

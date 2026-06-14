@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { Home, PlusCircle, Target, TrendingUp, Sun, Moon, Settings, Download } from '@lucide/svelte';
+	import { Home, PlusCircle, Target, TrendingUp, Sun, Moon, Settings, Download, Plus } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.svg';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
@@ -50,6 +50,25 @@
 					5000
 				);
 			}, 1000);
+		}
+	});
+
+	// Alerta proactiva de transacciones recurrentes pendientes
+	$effect(() => {
+		if (!financeStore.isReady) return;
+		const alreadyAlertedRecurring = sessionStorage.getItem('recurring_alert_shown');
+		if (alreadyAlertedRecurring) return;
+
+		const pending = financeStore.getPendingRecurringTransactions();
+		if (pending.length > 0) {
+			sessionStorage.setItem('recurring_alert_shown', '1');
+			setTimeout(() => {
+				toastStore.add(
+					`Tienes ${pending.length} transacción(es) recurrente(s) pendiente(s). Revisa la sección Recurrentes.`,
+					'warning',
+					7000
+				);
+			}, 1500);
 		}
 	});
 
@@ -137,7 +156,7 @@
 
 	<!-- Bottom Navigation -->
 	<nav
-		class="fixed bottom-4 left-4 right-4 z-50 flex justify-between rounded-3xl px-6 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.1)] backdrop-blur-2xl transition-all border"
+		class="fixed bottom-4 left-4 right-4 z-50 flex items-center justify-between rounded-3xl px-6 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.1)] backdrop-blur-2xl transition-all border"
 		style="background-color: {isDark ? 'rgba(30, 41, 59, 0.75)' : 'rgba(255, 255, 255, 0.8)'}; border-color: {isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'};"
 	>
 		<a
@@ -150,11 +169,10 @@
 		</a>
 		<a
 			href="/registro"
-			class="flex flex-col items-center p-2 text-xs transition-colors"
-			style="color: {page.url.pathname === '/registro' ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
+			class="relative -top-5 flex flex-col items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40 transition-transform hover:scale-105 active:scale-95"
+			style="width: 56px; height: 56px;"
 		>
-			<PlusCircle size={24} />
-			<span>Registro</span>
+			<Plus size={32} />
 		</a>
 		<a
 			href="/ahorro"

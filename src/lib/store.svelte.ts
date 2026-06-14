@@ -45,11 +45,7 @@ class FinanceStoreFacade {
 		]);
 		
 		this.recalculateBalances();
-		this.processRecurringTransactions();
-		
-		setInterval(() => {
-			this.processRecurringTransactions();
-		}, 60 * 60 * 1000); // Check every hour
+		// Recurring txs are no longer processed automatically, user must approve them
 		
 		this.isReady = true;
 	}
@@ -163,7 +159,10 @@ class FinanceStoreFacade {
 
 		const spent = this.transactions
 			.filter(t => t.type === 'expense' && t.categoryId === categoryId && t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth)
-			.reduce((acc, t) => acc + t.amount, 0);
+			.reduce((acc, t) => {
+				const account = this.accounts.find(a => a.id === t.accountId);
+				return acc + convertToBaseCurrency(t.amount, account?.currency);
+			}, 0);
 
 		return {
 			budget: budget.amount,
@@ -176,20 +175,24 @@ class FinanceStoreFacade {
 	addRecurringTransaction(rt: RecurringTransaction) { this.recurringStore.addRecurringTransaction(rt); }
 	deleteRecurringTransaction(id: string) { this.recurringStore.deleteRecurringTransaction(id); }
 	
-	processRecurringTransactions() {
+	getPendingRecurringTransactions() {
 		const now = new Date();
-		const updatedRecurring = this.recurringTransactions.map(rt => {
+		const pending: { rtId: string; tx: Transaction }[] = [];
+		this.recurringTransactions.forEach(rt => {
 			let nextDate = new Date(rt.nextDate);
 			while (nextDate <= now) {
-				this.addTransaction({
-					id: crypto.randomUUID(),
-					date: nextDate.toISOString(),
-					amount: rt.amount,
-					categoryId: rt.categoryId,
-					accountId: rt.accountId,
-					toAccountId: rt.toAccountId,
-					note: rt.note,
-					type: rt.type
+				pending.push({
+					rtId: rt.id,
+					tx: {
+						id: crypto.randomUUID(),
+						date: nextDate.toISOString(),
+						amount: rt.amount,
+						categoryId: rt.categoryId,
+						accountId: rt.accountId,
+						toAccountId: rt.toAccountId,
+						note: rt.note,
+						type: rt.type
+					}
 				});
 				
 				if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
@@ -197,9 +200,31 @@ class FinanceStoreFacade {
 				else if (rt.frequency === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
 				else if (rt.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
 			}
-			return { ...rt, nextDate: nextDate.toISOString() };
 		});
-		this.recurringStore.updateRecurringTransactions(updatedRecurring);
+		return pending;
+	}
+
+	approvePendingRecurring(rtId: string, tx: Transaction, accept: boolean) {
+		const rt = this.recurringTransactions.find(r => r.id === rtId);
+		if (!rt) return;
+		
+		if (accept) {
+			this.addTransaction(tx);
+		}
+		
+		let nextDate = new Date(tx.date);
+		if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+		else if (rt.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+		else if (rt.frequency === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
+		else if (rt.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+		
+		// Ensure we don't go backwards if multiple are pending
+		const currentNext = new Date(rt.nextDate);
+		if (nextDate > currentNext) {
+			this.recurringStore.updateRecurringTransactions(
+				this.recurringTransactions.map(r => r.id === rtId ? { ...r, nextDate: nextDate.toISOString() } : r)
+			);
+		}
 	}
 
 	// === Debts ===
@@ -299,7 +324,9 @@ class FinanceStoreFacade {
 
 		const grouped: Record<string, number> = {};
 		expenses.forEach((t) => {
-			grouped[t.categoryId] = (grouped[t.categoryId] || 0) + t.amount;
+			const account = this.accounts.find(a => a.id === t.accountId);
+			const convertedAmount = convertToBaseCurrency(t.amount, account?.currency);
+			grouped[t.categoryId] = (grouped[t.categoryId] || 0) + convertedAmount;
 		});
 
 		const total = Object.values(grouped).reduce((a, b) => a + b, 0) || 1;
@@ -330,8 +357,14 @@ class FinanceStoreFacade {
 			const endOfDay = startOfDay + 86400000 - 1;
 
 			const dayTx = this.transactions.filter((t) => t.timestamp! >= startOfDay && t.timestamp! <= endOfDay);
-			const expenses = dayTx.filter((t) => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
-			const income = dayTx.filter((t) => t.type === 'income').reduce((a, b) => a + b.amount, 0);
+			const expenses = dayTx.filter((t) => t.type === 'expense').reduce((a, t) => {
+				const account = this.accounts.find(acc => acc.id === t.accountId);
+				return a + convertToBaseCurrency(t.amount, account?.currency);
+			}, 0);
+			const income = dayTx.filter((t) => t.type === 'income').reduce((a, t) => {
+				const account = this.accounts.find(acc => acc.id === t.accountId);
+				return a + convertToBaseCurrency(t.amount, account?.currency);
+			}, 0);
 
 			const names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 			days.push({ label: names[d.getDay()], expenses, income });
@@ -354,8 +387,14 @@ class FinanceStoreFacade {
 
 			const monthTx = this.transactions.filter((t) => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
 
-			const expenses = monthTx.filter((t) => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
-			const income = monthTx.filter((t) => t.type === 'income').reduce((a, b) => a + b.amount, 0);
+			const expenses = monthTx.filter((t) => t.type === 'expense').reduce((a, t) => {
+				const account = this.accounts.find(acc => acc.id === t.accountId);
+				return a + convertToBaseCurrency(t.amount, account?.currency);
+			}, 0);
+			const income = monthTx.filter((t) => t.type === 'income').reduce((a, t) => {
+				const account = this.accounts.find(acc => acc.id === t.accountId);
+				return a + convertToBaseCurrency(t.amount, account?.currency);
+			}, 0);
 
 			const names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 			months.push({ label: names[month], expenses, income });
@@ -382,11 +421,17 @@ class FinanceStoreFacade {
 
 		const current = this.transactions
 			.filter((t) => t.type === 'expense' && t.timestamp! >= weekStartTs)
-			.reduce((a, b) => a + b.amount, 0);
+			.reduce((a, t) => {
+				const account = this.accounts.find(acc => acc.id === t.accountId);
+				return a + convertToBaseCurrency(t.amount, account?.currency);
+			}, 0);
 
 		const previous = this.transactions
 			.filter((t) => t.type === 'expense' && t.timestamp! >= prevStartTs && t.timestamp! < weekStartTs)
-			.reduce((a, b) => a + b.amount, 0);
+			.reduce((a, t) => {
+				const account = this.accounts.find(acc => acc.id === t.accountId);
+				return a + convertToBaseCurrency(t.amount, account?.currency);
+			}, 0);
 
 		const diff = current - previous;
 		const diffPercent = previous > 0 ? Math.round((diff / previous) * 100) : (current > 0 ? 100 : 0);
@@ -407,8 +452,14 @@ class FinanceStoreFacade {
 
 		const monthTx = this.transactions.filter(t => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
 
-		const monthIncome = monthTx.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
-		const monthExpenses = monthTx.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
+		const monthIncome = monthTx.filter(t => t.type === 'income').reduce((a, t) => {
+			const account = this.accounts.find(acc => acc.id === t.accountId);
+			return a + convertToBaseCurrency(t.amount, account?.currency);
+		}, 0);
+		const monthExpenses = monthTx.filter(t => t.type === 'expense').reduce((a, t) => {
+			const account = this.accounts.find(acc => acc.id === t.accountId);
+			return a + convertToBaseCurrency(t.amount, account?.currency);
+		}, 0);
 		const monthNet = monthIncome - monthExpenses;
 
 		const savingsRate = monthIncome > 0 ? Math.round((monthNet / monthIncome) * 100) : 0;
@@ -440,49 +491,51 @@ class FinanceStoreFacade {
 		try {
 			const data = JSON.parse(json);
 			
+			// Validate all first
 			let validAccounts = this.accountsStore.data.map(a => a.id);
 			let validCategories = this.categoriesStore.data.map(c => c.id);
-
+			
+			let newAccounts, newCategories, newTransactions, newGoals, newBudgets, newDebts, newRecurring;
+			
 			if (data.accounts) {
-				const newAccounts = data.accounts.map((a: unknown) => AccountSchema.parse(a));
-				this.accountsStore.data = newAccounts;
-				this.accountsStore.save();
+				newAccounts = data.accounts.map((a: unknown) => AccountSchema.parse(a));
 				validAccounts = newAccounts.map((a: {id: string}) => a.id);
 			}
 			if (data.categories) {
-				const parsed = data.categories.filter((c: any) => CategorySchema.safeParse(c).success);
-				this.categoriesStore.data = parsed;
-				this.categoriesStore.save();
-				validCategories = parsed.map((c: {id: string}) => c.id);
+				newCategories = data.categories.filter((c: any) => CategorySchema.safeParse(c).success);
+				validCategories = newCategories.map((c: {id: string}) => c.id);
 			}
 			if (data.transactions) {
-				const parsed = data.transactions.map((t: unknown) => TransactionSchema.parse(t))
+				newTransactions = data.transactions.map((t: unknown) => TransactionSchema.parse(t))
 					.filter((t: any) => validAccounts.includes(t.accountId) && validCategories.includes(t.categoryId));
-				this.transactionsStore.data = parsed;
-				this.transactionsStore.save();
 			}
 			if (data.goals) {
-				this.goalsStore.data = data.goals.map((g: unknown) => GoalSchema.parse(g));
-				this.goalsStore.save();
+				newGoals = data.goals.map((g: unknown) => GoalSchema.parse(g));
 			}
 			if (data.budgets) {
-				this.budgetsStore.data = data.budgets.map((b: unknown) => BudgetSchema.parse(b));
-				this.budgetsStore.save();
+				newBudgets = data.budgets.map((b: unknown) => BudgetSchema.parse(b));
 			}
 			if (data.debts) {
-				this.debtsStore.data = data.debts.map((d: unknown) => DebtSchema.parse(d));
-				this.debtsStore.save();
+				newDebts = data.debts.map((d: unknown) => DebtSchema.parse(d));
 			}
 			if (data.recurringTransactions) {
-				const parsed = data.recurringTransactions.map((r: unknown) => RecurringTransactionSchema.parse(r))
+				newRecurring = data.recurringTransactions.map((r: unknown) => RecurringTransactionSchema.parse(r))
 					.filter((r: any) => validAccounts.includes(r.accountId) && validCategories.includes(r.categoryId));
-				this.recurringStore.data = parsed;
-				this.recurringStore.save();
 			}
 			
+			// Apply all if no throw
+			if (newAccounts) { this.accountsStore.data = newAccounts; this.accountsStore.save(); }
+			if (newCategories) { this.categoriesStore.data = newCategories; this.categoriesStore.save(); }
+			if (newTransactions) { this.transactionsStore.data = newTransactions; this.transactionsStore.save(); }
+			if (newGoals) { this.goalsStore.data = newGoals; this.goalsStore.save(); }
+			if (newBudgets) { this.budgetsStore.data = newBudgets; this.budgetsStore.save(); }
+			if (newDebts) { this.debtsStore.data = newDebts; this.debtsStore.save(); }
+			if (newRecurring) { this.recurringStore.data = newRecurring; this.recurringStore.save(); }
+
 			this.recalculateBalances();
 			return true;
-		} catch {
+		} catch (e) {
+			console.error('Import failed', e);
 			return false;
 		}
 	}
