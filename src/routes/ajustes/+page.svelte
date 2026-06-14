@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
-	import { Download, Upload, Settings } from '@lucide/svelte';
+	import { Download, Upload, Settings, User } from '@lucide/svelte';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
 	import { vibrate } from '$lib/utils/haptics';
 
@@ -62,8 +62,15 @@
 	<ThemePicker />
 
 	<div class="mb-6 rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
-		<h2 class="mb-4 text-lg font-semibold" style="color: var(--color-text);">Administración</h2>
+		<h2 class="mb-4 text-lg font-semibold" style="color: var(--color-text);">Personalización y Administración</h2>
 		<div class="flex flex-col gap-3">
+			<a href="/ajustes/perfil" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
+				<div class="flex items-center gap-3">
+					<User size={20} style="color: var(--color-primary);" />
+					<span class="font-medium" style="color: var(--color-text);">Mi Perfil</span>
+				</div>
+				<span style="color: var(--color-text-secondary);">➔</span>
+			</a>
 			<a href="/ajustes/cuentas" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
 				<div class="flex items-center gap-3">
 					<span class="text-xl">💳</span>

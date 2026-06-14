@@ -4,7 +4,12 @@ import { loadFromStorage, saveToStorage } from './storage';
 export class SettingsStore {
 	data = $state<Settings>({
 		baseCurrency: 'PEN',
-		exchangeRates: { 'USD': 3.75, 'EUR': 4.05 }
+		exchangeRates: { 'USD': 3.75, 'EUR': 4.05 },
+		profile: {
+			name: '',
+			avatar: '👋',
+			usePhoto: false
+		}
 	});
 	isReady = $state(false);
 

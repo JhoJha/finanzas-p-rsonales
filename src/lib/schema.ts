@@ -23,7 +23,12 @@ export const AccountSchema = z.object({
 
 export const SettingsSchema = z.object({
 	baseCurrency: z.string(),
-	exchangeRates: z.record(z.string(), z.number())
+	exchangeRates: z.record(z.string(), z.number()),
+	profile: z.object({
+		name: z.string().default(''),
+		avatar: z.string().default('👋'),
+		usePhoto: z.boolean().default(false)
+	}).optional()
 });
 
 export const TransactionSchema = z.object({

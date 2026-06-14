@@ -21,14 +21,55 @@
 	let recentTransactions = $derived([...financeStore.transactions].reverse().slice(0, 5));
 
 	let hasExpenses = $derived(summary.expenses > 0);
+
+	let showOnboarding = $state(false);
+	let onboardName = $state('');
+
+	import { onMount } from 'svelte';
+	onMount(() => {
+		if (!financeStore.settings.profile?.name) {
+			showOnboarding = true;
+		}
+	});
+
+	function completeOnboarding() {
+		if (!onboardName.trim()) return;
+		financeStore.updateSettings({
+			profile: {
+				name: onboardName.trim(),
+				avatar: '👋',
+				usePhoto: false
+			}
+		});
+		showOnboarding = false;
+	}
 </script>
 
 <div class="animate-fade-in-up space-y-5">
+	<!-- Saludo / Perfil -->
+	<div class="flex items-center justify-between">
+		<div>
+			<p class="text-xs font-bold uppercase tracking-wider text-text-secondary">
+				{new Date().getHours() < 12 ? 'Buenos días' : new Date().getHours() < 19 ? 'Buenas tardes' : 'Buenas noches'},
+			</p>
+			<h1 class="text-2xl font-extrabold text-text">
+				{financeStore.settings.profile?.name || 'Bienvenido'}
+			</h1>
+		</div>
+		<a href="/ajustes/perfil" class="relative flex h-12 w-12 items-center justify-center rounded-full border-2 border-primary bg-surface text-2xl shadow-sm transition-transform active:scale-95 overflow-hidden">
+			{#if financeStore.settings.profile?.usePhoto && financeStore.settings.profile?.avatar.length > 10}
+				<img src={financeStore.settings.profile.avatar} alt="Avatar" class="h-full w-full object-cover" />
+			{:else}
+				{financeStore.settings.profile?.avatar || '👋'}
+			{/if}
+		</a>
+	</div>
+
 	<!-- Main Balance -->
 	<div
 		class="flex flex-col items-center justify-center rounded-2xl p-6 shadow-sm bg-surface"
 	>
-		<span class="text-sm font-medium text-text-secondary">Saldo Total (Todas las cuentas)</span>
+		<span class="text-sm font-medium text-text-secondary">Saldo Total</span>
 		<span
 			class="text-5xl font-extrabold tracking-tight"
 			style="background: {summary.balance >= 0 ? 'linear-gradient(135deg, var(--color-primary), var(--color-accent))' : 'linear-gradient(135deg, var(--color-danger), #f43f5e)'}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
@@ -202,11 +243,45 @@
 		</p>
 	</div>
 
-	<!-- Recent Transactions -->
-	<div class="rounded-2xl p-5 shadow-sm bg-surface">
-		<h2 class="mb-4 text-lg font-semibold text-text">
-			Actividad Reciente
-		</h2>
+	<!-- Últimas Transacciones -->
+	<div class="rounded-2xl p-6 shadow-sm bg-surface mb-8">
+		<div class="mb-4 flex items-center justify-between">
+			<h2 class="text-lg font-bold text-text">Últimos Movimientos</h2>
+			<a href="/analisis" class="text-xs font-semibold text-primary transition-colors hover:text-primary-dark">Ver todo</a>
+		</div>
 		<TransactionHistory transactions={recentTransactions} />
 	</div>
 </div>
+
+{#if showOnboarding}
+	<!-- Onboarding Modal -->
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in-up">
+		<div class="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style="background-color: var(--color-surface);">
+			<div class="mb-6 text-center">
+				<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl">👋</div>
+				<h2 class="text-2xl font-bold" style="color: var(--color-text);">¡Hola!</h2>
+				<p class="mt-2 text-sm" style="color: var(--color-text-secondary);">Para hacer esta experiencia más personal, dinos cómo te llamas.</p>
+			</div>
+			
+			<div class="mb-6">
+				<input
+					type="text"
+					bind:value={onboardName}
+					placeholder="Tu nombre o apodo"
+					class="w-full rounded-xl p-4 text-center text-lg font-medium outline-none transition-all focus:ring-2 focus:ring-primary shadow-inner"
+					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+					onkeydown={(e) => { if(e.key === 'Enter') completeOnboarding(); }}
+				/>
+			</div>
+
+			<button
+				onclick={completeOnboarding}
+				disabled={!onboardName.trim()}
+				class="w-full rounded-xl py-4 font-bold text-white shadow-lg transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+				style="background-color: var(--color-primary);"
+			>
+				Continuar
+			</button>
+		</div>
+	</div>
+{/if}
