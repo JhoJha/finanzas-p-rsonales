@@ -21,28 +21,6 @@
 	let showNewCategory = $state(false);
 	let newCatName = $state('');
 
-<script lang="ts">
-	import { financeStore } from '$lib/store.svelte';
-	import { toastStore } from '$lib/toast.svelte';
-	import { vibrate } from '$lib/utils/haptics';
-	import { goto } from '$app/navigation';
-	import { TransactionSchema, type Category } from '$lib/schema';
-	import { Mic, MicOff, Save, Plus, X } from '@lucide/svelte';
-	import { parseSpeech } from '$lib/utils/speechParser';
-
-	let amount = $state('');
-	let categoryId = $state('1');
-	let type = $state<'expense' | 'income' | 'transfer'>('expense');
-	let accountId = $state(financeStore.accounts[0]?.id || 'default-cash');
-	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
-	let note = $state('');
-	let txDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD, por defecto hoy
-	let isRecording = $state(false);
-	let dictationResult = $state('');
-
-	// Categoría personalizada
-	let showNewCategory = $state(false);
-	let newCatName = $state('');
 
 	const categories = financeStore.categories;
 

@@ -124,5 +124,5 @@
 </script>
 
 <div class="w-full" style="height: {height}px">
-	<canvas bind:this={canvasEl} />
+	<canvas bind:this={canvasEl}></canvas>
 </div>
