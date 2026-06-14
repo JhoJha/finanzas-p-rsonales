@@ -165,10 +165,10 @@
 		</a>
 		<a
 			href="/registro"
-			class="relative -top-5 flex flex-col items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40 transition-transform hover:scale-105 active:scale-95"
-			style="width: 56px; height: 56px;"
+			class="flex flex-col items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
+			style="width: 50px; height: 50px;"
 		>
-			<Plus size={32} />
+			<Plus size={28} />
 		</a>
 		<a
 			href="/ahorro"
