@@ -39,8 +39,36 @@ class FinanceStoreFacade {
 			this.debtsStore.init(),
 			this.recurringStore.init()
 		]);
+		
+		this.recalculateBalances();
 		this.processRecurringTransactions();
+		
+		setInterval(() => {
+			this.processRecurringTransactions();
+		}, 60 * 60 * 1000); // Check every hour
+		
 		this.isReady = true;
+	}
+
+	recalculateBalances() {
+		this.accountsStore.data.forEach(a => {
+			this.accountsStore.setBalance(a.id, 0);
+		});
+		
+		this.transactionsStore.data.forEach(t => {
+			this.applyTransactionEffect(t, 1);
+		});
+	}
+
+	private applyTransactionEffect(t: Transaction, multiplier: number) {
+		if (t.type === 'income') {
+			this.accountsStore.updateBalance(t.accountId, t.amount * multiplier);
+		} else if (t.type === 'expense') {
+			this.accountsStore.updateBalance(t.accountId, -t.amount * multiplier);
+		} else if (t.type === 'transfer' && t.toAccountId) {
+			this.accountsStore.updateBalance(t.accountId, -t.amount * multiplier);
+			this.accountsStore.updateBalance(t.toAccountId, t.amount * multiplier);
+		}
 	}
 
 	// === Derived State Accessors ===
@@ -50,41 +78,26 @@ class FinanceStoreFacade {
 	get budgets() { return this.budgetsStore.data; }
 	get recurringTransactions() { return this.recurringStore.data; }
 	get debts() { return this.debtsStore.data; }
-
-	// Accounts Balance Reactivity with $derived
-	accounts = $derived.by(() => {
-		const balances: Record<string, number> = {};
-		this.accountsStore.data.forEach(a => balances[a.id] = 0);
-
-		this.transactionsStore.data.forEach(t => {
-			if (!balances[t.accountId]) balances[t.accountId] = 0;
-			
-			if (t.type === 'income') {
-				balances[t.accountId] += t.amount;
-			} else if (t.type === 'expense') {
-				balances[t.accountId] -= t.amount;
-			} else if (t.type === 'transfer' && t.toAccountId) {
-				balances[t.accountId] -= t.amount;
-				if (!balances[t.toAccountId]) balances[t.toAccountId] = 0;
-				balances[t.toAccountId] += t.amount;
-			}
-		});
-
-		return this.accountsStore.data.map(a => ({
-			...a,
-			balance: balances[a.id] || 0
-		}));
-	});
+	get accounts() { return this.accountsStore.data; }
 
 	// === Transactions ===
 	addTransaction(transaction: Transaction) {
 		this.transactionsStore.addTransaction(transaction);
+		this.applyTransactionEffect(transaction, 1);
 	}
 	deleteTransaction(id: string) {
+		const t = this.transactions.find(tx => tx.id === id);
+		if (t) this.applyTransactionEffect(t, -1);
 		this.transactionsStore.deleteTransaction(id);
 	}
 	updateTransaction(id: string, data: Partial<Transaction>) {
-		this.transactionsStore.updateTransaction(id, data);
+		const t = this.transactions.find(tx => tx.id === id);
+		if (t) {
+			this.applyTransactionEffect(t, -1);
+			const updated = { ...t, ...data };
+			this.applyTransactionEffect(updated, 1);
+			this.transactionsStore.updateTransaction(id, data);
+		}
 	}
 
 	// === Accounts ===
@@ -95,6 +108,16 @@ class FinanceStoreFacade {
 		const hasTx = this.transactions.some(t => t.accountId === id || t.toAccountId === id);
 		if (hasTx) {
 			toastStore.add('No se puede eliminar la cuenta porque tiene transacciones asociadas.', 'error');
+			return false;
+		}
+		const hasRecurring = this.recurringTransactions.some(rt => rt.accountId === id || rt.toAccountId === id);
+		if (hasRecurring) {
+			toastStore.add('No se puede eliminar la cuenta porque tiene transacciones recurrentes asociadas.', 'error');
+			return false;
+		}
+		const hasDebts = this.debts.some(d => d.accountId === id);
+		if (hasDebts) {
+			toastStore.add('No se puede eliminar la cuenta porque está vinculada a deudas.', 'error');
 			return false;
 		}
 		this.accountsStore.removeAccount(id);
@@ -290,9 +313,11 @@ class FinanceStoreFacade {
 		for (let i = 6; i >= 0; i--) {
 			const d = new Date(now);
 			d.setDate(d.getDate() - i);
-			const dayStr = d.toISOString().split('T')[0];
+			
+			const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+			const endOfDay = startOfDay + 86400000 - 1;
 
-			const dayTx = this.transactions.filter((t) => t.date.startsWith(dayStr));
+			const dayTx = this.transactions.filter((t) => t.timestamp! >= startOfDay && t.timestamp! <= endOfDay);
 			const expenses = dayTx.filter((t) => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
 			const income = dayTx.filter((t) => t.type === 'income').reduce((a, b) => a + b.amount, 0);
 
@@ -402,22 +427,27 @@ class FinanceStoreFacade {
 	importFromJSON(json: string): boolean {
 		try {
 			const data = JSON.parse(json);
-			// We can implement full import by clearing and pushing to stores, 
-			// but for this refactor, let's keep it simple or implement it properly:
-			if (data.transactions) {
-				this.transactionsStore.data = data.transactions.map((t: unknown) => TransactionSchema.parse(t));
-				this.transactionsStore.save();
+			
+			let validAccounts = this.accountsStore.data.map(a => a.id);
+			let validCategories = this.categoriesStore.data.map(c => c.id);
+
+			if (data.accounts) {
+				const newAccounts = data.accounts.map((a: unknown) => AccountSchema.parse(a));
+				this.accountsStore.data = newAccounts;
+				this.accountsStore.save();
+				validAccounts = newAccounts.map((a: {id: string}) => a.id);
 			}
 			if (data.categories) {
-				const internalIds = [INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS];
 				const parsed = data.categories.filter((c: any) => CategorySchema.safeParse(c).success);
-				// Enforce internals
 				this.categoriesStore.data = parsed;
 				this.categoriesStore.save();
+				validCategories = parsed.map((c: {id: string}) => c.id);
 			}
-			if (data.accounts) {
-				this.accountsStore.data = data.accounts.map((a: unknown) => AccountSchema.parse(a));
-				this.accountsStore.save();
+			if (data.transactions) {
+				const parsed = data.transactions.map((t: unknown) => TransactionSchema.parse(t))
+					.filter((t: any) => validAccounts.includes(t.accountId) && validCategories.includes(t.categoryId));
+				this.transactionsStore.data = parsed;
+				this.transactionsStore.save();
 			}
 			if (data.goals) {
 				this.goalsStore.data = data.goals.map((g: unknown) => GoalSchema.parse(g));
@@ -432,9 +462,13 @@ class FinanceStoreFacade {
 				this.debtsStore.save();
 			}
 			if (data.recurringTransactions) {
-				this.recurringStore.data = data.recurringTransactions.map((r: unknown) => RecurringTransactionSchema.parse(r));
+				const parsed = data.recurringTransactions.map((r: unknown) => RecurringTransactionSchema.parse(r))
+					.filter((r: any) => validAccounts.includes(r.accountId) && validCategories.includes(r.categoryId));
+				this.recurringStore.data = parsed;
 				this.recurringStore.save();
 			}
+			
+			this.recalculateBalances();
 			return true;
 		} catch {
 			return false;

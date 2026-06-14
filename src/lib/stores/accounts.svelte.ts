@@ -25,6 +25,22 @@ export class AccountsStore {
 		this.data = this.data.filter(a => a.id !== id);
 		this.save();
 	}
+
+	updateBalance(id: string, amount: number) {
+		const account = this.data.find(a => a.id === id);
+		if (account) {
+			account.balance += amount;
+			this.save();
+		}
+	}
+
+	setBalance(id: string, amount: number) {
+		const account = this.data.find(a => a.id === id);
+		if (account) {
+			account.balance = amount;
+			this.save();
+		}
+	}
 	
 	save() {
 		saveToStorage('finances_accounts', $state.snapshot(this.data));
