@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { type Category, type Transaction, type Goal, defaultCategories } from './schema';
+import { type Category, type Transaction, type Goal, defaultCategories, type Account, type Budget, type RecurringTransaction } from './schema';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -7,45 +7,161 @@ export class FinanceStore {
 	categories = $state<Category[]>(defaultCategories);
 	transactions = $state<Transaction[]>([]);
 	goals = $state<Goal[]>([]);
+	accounts = $state<Account[]>([{ id: 'default-cash', name: 'Efectivo General', type: 'cash', balance: 0, color: 'bg-green-500' }]);
+	budgets = $state<Budget[]>([]);
+	recurringTransactions = $state<RecurringTransaction[]>([]);
 
 	constructor() {
 		if (browser) {
 			const storedTransactions = localStorage.getItem('finances_transactions');
 			const storedCategories = localStorage.getItem('finances_categories');
 			const storedGoals = localStorage.getItem('finances_goals');
+			const storedAccounts = localStorage.getItem('finances_accounts');
+			const storedBudgets = localStorage.getItem('finances_budgets');
+			const storedRecurring = localStorage.getItem('finances_recurring');
 
-			if (storedTransactions) this.transactions = JSON.parse(storedTransactions);
 			if (storedCategories) this.categories = JSON.parse(storedCategories);
 			if (storedGoals) this.goals = JSON.parse(storedGoals);
+			if (storedAccounts) this.accounts = JSON.parse(storedAccounts);
+			if (storedBudgets) this.budgets = JSON.parse(storedBudgets);
+			if (storedRecurring) this.recurringTransactions = JSON.parse(storedRecurring);
+
+			if (storedTransactions) {
+				const parsedTx = JSON.parse(storedTransactions);
+				this.transactions = parsedTx.map((t: any) => ({
+					...t,
+					accountId: t.accountId || 'default-cash'
+				}));
+			}
+
+			this.recalculateBalances();
+			this.processRecurringTransactions();
 
 			// Subscribe to changes to serialize to local storage
 			$effect.root(() => {
-				$effect(() => {
-					localStorage.setItem('finances_transactions', JSON.stringify(this.transactions));
-				});
-				$effect(() => {
-					localStorage.setItem('finances_categories', JSON.stringify(this.categories));
-				});
-				$effect(() => {
-					localStorage.setItem('finances_goals', JSON.stringify(this.goals));
-				});
+				$effect(() => { localStorage.setItem('finances_transactions', JSON.stringify(this.transactions)); });
+				$effect(() => { localStorage.setItem('finances_categories', JSON.stringify(this.categories)); });
+				$effect(() => { localStorage.setItem('finances_goals', JSON.stringify(this.goals)); });
+				$effect(() => { localStorage.setItem('finances_accounts', JSON.stringify(this.accounts)); });
+				$effect(() => { localStorage.setItem('finances_budgets', JSON.stringify(this.budgets)); });
+				$effect(() => { localStorage.setItem('finances_recurring', JSON.stringify(this.recurringTransactions)); });
 			});
 		}
 	}
 
+	recalculateBalances() {
+		const balances: Record<string, number> = {};
+		this.accounts.forEach(a => balances[a.id] = 0);
+
+		this.transactions.forEach(t => {
+			if (!balances[t.accountId]) balances[t.accountId] = 0;
+			
+			if (t.type === 'income') {
+				balances[t.accountId] += t.amount;
+			} else if (t.type === 'expense') {
+				balances[t.accountId] -= t.amount;
+			} else if (t.type === 'transfer' && t.toAccountId) {
+				balances[t.accountId] -= t.amount;
+				if (!balances[t.toAccountId]) balances[t.toAccountId] = 0;
+				balances[t.toAccountId] += t.amount;
+			}
+		});
+
+		this.accounts = this.accounts.map(a => ({ ...a, balance: balances[a.id] || 0 }));
+	}
+
+	processRecurringTransactions() {
+		const now = new Date();
+		let addedNew = false;
+
+		this.recurringTransactions = this.recurringTransactions.map(rt => {
+			let nextDate = new Date(rt.nextDate);
+			while (nextDate <= now) {
+				this.transactions.push({
+					id: crypto.randomUUID(),
+					date: nextDate.toISOString(),
+					amount: rt.amount,
+					categoryId: rt.categoryId,
+					accountId: rt.accountId,
+					toAccountId: rt.toAccountId,
+					note: rt.note,
+					type: rt.type
+				});
+				addedNew = true;
+				
+				if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+				else if (rt.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+				else if (rt.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+			}
+			return { ...rt, nextDate: nextDate.toISOString() };
+		});
+
+		if (addedNew) this.recalculateBalances();
+	}
+
 	addTransaction(transaction: Transaction) {
 		this.transactions.push(transaction);
+		this.recalculateBalances();
 	}
 
 	deleteTransaction(id: string) {
 		this.transactions = this.transactions.filter((t) => t.id !== id);
+		this.recalculateBalances();
 	}
 
 	updateTransaction(id: string, data: Partial<Transaction>) {
 		const index = this.transactions.findIndex((t) => t.id === id);
 		if (index !== -1) {
 			this.transactions[index] = { ...this.transactions[index], ...data };
+			this.recalculateBalances();
 		}
+	}
+
+	addAccount(account: Account) {
+		this.accounts.push(account);
+	}
+
+	deleteAccount(id: string) {
+		this.accounts = this.accounts.filter(a => a.id !== id);
+	}
+
+	addBudget(budget: Budget) {
+		this.budgets.push(budget);
+	}
+
+	deleteBudget(id: string) {
+		this.budgets = this.budgets.filter(b => b.id !== id);
+	}
+
+	addRecurringTransaction(rt: RecurringTransaction) {
+		this.recurringTransactions.push(rt);
+	}
+
+	deleteRecurringTransaction(id: string) {
+		this.recurringTransactions = this.recurringTransactions.filter(rt => rt.id !== id);
+	}
+
+	getBudgetProgress(categoryId: string) {
+		const budget = this.budgets.find(b => b.categoryId === categoryId);
+		if (!budget) return null;
+
+		const now = new Date();
+		const currentMonth = now.getMonth();
+		const currentYear = now.getFullYear();
+
+		const spent = this.transactions
+			.filter(t => t.type === 'expense' && t.categoryId === categoryId)
+			.filter(t => {
+				const d = new Date(t.date);
+				return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+			})
+			.reduce((acc, t) => acc + t.amount, 0);
+
+		return {
+			budget: budget.amount,
+			spent,
+			percent: Math.round((spent / budget.amount) * 100)
+		};
 	}
 
 	addGoal(goal: Goal) {
@@ -77,11 +193,13 @@ export class FinanceStore {
 			.reduce((acc, t) => acc + t.amount, 0);
 
 		const savings = this.goals.reduce((acc, g) => acc + g.currentAmount, 0);
+		
+		const balance = this.accounts.reduce((acc, a) => acc + a.balance, 0);
 
 		return {
 			income,
 			expenses,
-			balance: income - expenses,
+			balance,
 			savings
 		};
 	}

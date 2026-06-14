@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
-	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat } from '@lucide/svelte';
 	import Chart from '$lib/components/Chart.svelte';
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 
@@ -43,13 +43,30 @@
 		class="flex flex-col items-center justify-center rounded-2xl p-6 shadow-sm"
 		style="background-color: var(--color-surface);"
 	>
-		<span class="text-sm font-medium" style="color: var(--color-text-secondary);">Saldo Total</span>
+		<span class="text-sm font-medium" style="color: var(--color-text-secondary);">Saldo Total (Todas las cuentas)</span>
 		<span
 			class="text-4xl font-bold"
 			style="color: {summary.balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};"
 		>
 			S/ {summary.balance.toFixed(2)}
 		</span>
+	</div>
+
+	<!-- Cuentas / Billeteras -->
+	<div class="flex gap-4 overflow-x-auto pb-2 snap-x" style="scrollbar-width: none; -ms-overflow-style: none;">
+		{#each financeStore.accounts as account}
+			<div 
+				class="min-w-[160px] flex-shrink-0 snap-start rounded-2xl p-5 shadow-sm text-white relative overflow-hidden"
+				style="background: {account.type === 'bank' ? 'var(--color-primary)' : account.type === 'credit' ? 'var(--color-danger)' : 'var(--color-success)'};"
+			>
+				<div class="absolute -right-4 -top-4 rounded-full bg-white opacity-10" style="width: 64px; height: 64px;"></div>
+				<div class="mb-2 flex items-center justify-between relative z-10">
+					<span class="text-sm font-medium opacity-90">{account.name}</span>
+					<Wallet size={16} />
+				</div>
+				<div class="text-xl font-bold relative z-10">S/ {account.balance.toFixed(2)}</div>
+			</div>
+		{/each}
 	</div>
 
 	<!-- Stats Grid -->
@@ -73,6 +90,22 @@
 			<span class="text-xs font-medium" style="color: var(--color-text-secondary);">Gastos</span>
 			<div class="text-lg font-bold" style="color: var(--color-text);">S/ {summary.expenses.toFixed(2)}</div>
 		</div>
+	</div>
+
+	<!-- Herramientas Avanzadas -->
+	<div class="grid grid-cols-2 gap-4">
+		<a href="/presupuestos" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
+			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+				<Target size={20} />
+			</div>
+			<span class="text-sm font-semibold" style="color: var(--color-text);">Presupuestos</span>
+		</a>
+		<a href="/recurrentes" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all active:scale-95" style="background-color: var(--color-surface);">
+			<div class="w-fit rounded-full p-2" style="background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+				<Repeat size={20} />
+			</div>
+			<span class="text-sm font-semibold" style="color: var(--color-text);">Recurrentes</span>
+		</a>
 	</div>
 
 	<!-- Gráfico de gastos por categoría -->

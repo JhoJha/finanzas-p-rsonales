@@ -10,7 +10,9 @@
 
 	let amount = $state('');
 	let categoryId = $state('1');
-	let type = $state<'expense' | 'income'>('expense');
+	let type = $state<'expense' | 'income' | 'transfer'>('expense');
+	let accountId = $state(financeStore.accounts[0]?.id || 'default-cash');
+	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
 	let note = $state('');
 	let isRecording = $state(false);
 	let dictationResult = $state('');
@@ -30,8 +32,28 @@
 		showToast = true;
 	}
 
+	function evaluateMath(expression: string): number | null {
+		try {
+			const sanitized = expression.replace(/,/g, '.').replace(/[^0-9+\-*/.]/g, '');
+			if (!sanitized) return null;
+			const result = new Function('return ' + sanitized)();
+			return typeof result === 'number' ? result : null;
+		} catch {
+			return null;
+		}
+	}
+
+	function handleAmountBlur() {
+		const val = evaluateMath(amount);
+		if (val !== null && !isNaN(val)) {
+			amount = (Math.round(val * 100) / 100).toString();
+		}
+	}
+
 	function saveTransaction() {
-		if (!amount || isNaN(parseFloat(amount))) {
+		const finalAmount = evaluateMath(amount);
+
+		if (finalAmount === null || isNaN(finalAmount) || finalAmount <= 0) {
 			showToastMsg('Ingresa un monto válido', 'error');
 			return;
 		}
@@ -39,15 +61,34 @@
 		const newTx: Transaction = {
 			id: crypto.randomUUID(),
 			date: new Date().toISOString(),
-			amount: parseFloat(amount),
-			categoryId,
+			amount: finalAmount,
+			categoryId: type === 'transfer' ? 'transfer' : categoryId,
+			accountId,
+			toAccountId: type === 'transfer' ? toAccountId : undefined,
 			note,
 			type
 		};
 		financeStore.addTransaction(newTx);
 		
 		vibrate(15);
-		toastStore.add('Transacción guardada exitosamente', 'success');
+		
+		if (newTx.type === 'expense' && newTx.categoryId !== 'transfer') {
+			const progress = financeStore.getBudgetProgress(newTx.categoryId);
+			if (progress) {
+				if (progress.percent >= 100) {
+					toastStore.add(`¡Has superado el presupuesto! (${progress.percent}%)`, 'error');
+				} else if (progress.percent >= 80) {
+					toastStore.add(`Cuidado, estás al ${progress.percent}% de tu presupuesto`, 'info');
+				} else {
+					toastStore.add('Transacción guardada', 'success');
+				}
+			} else {
+				toastStore.add('Transacción guardada', 'success');
+			}
+		} else {
+			toastStore.add('Transacción guardada', 'success');
+		}
+
 		goto('/');
 
 		// Reset fields
@@ -169,21 +210,66 @@
 				>
 					💰 Ingreso
 				</button>
+				<button
+					class="flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all active:scale-95"
+					style="background-color: {type === 'transfer' ? 'color-mix(in srgb, var(--color-primary) 15%, transparent)' : 'var(--color-bg)'}; color: {type === 'transfer' ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
+					onclick={() => { type = 'transfer'; }}
+				>
+					🔄 Transf.
+				</button>
 			</div>
 
 			<!-- Monto -->
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Monto (S/)</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">
+					Monto (S/) <span class="font-normal opacity-70">(soporta sumas ej. 15+20)</span>
+				</label>
 				<input
-					type="number"
+					type="text"
+					inputmode="decimal"
 					bind:value={amount}
+					onblur={handleAmountBlur}
 					placeholder="0.00"
 					class="mt-1 w-full rounded-xl p-3.5 text-lg font-bold outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				/>
 			</div>
 
+			<!-- Cuentas -->
+			<div class="flex gap-2">
+				<div class="flex-1">
+					<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">
+						{type === 'transfer' ? 'Desde Cuenta' : 'Cuenta'}
+					</label>
+					<select
+						bind:value={accountId}
+						class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
+						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+					>
+						{#each financeStore.accounts as acc}
+							<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
+						{/each}
+					</select>
+				</div>
+
+				{#if type === 'transfer'}
+					<div class="flex-1">
+						<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Hacia Cuenta</label>
+						<select
+							bind:value={toAccountId}
+							class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
+							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+						>
+							{#each financeStore.accounts.filter(a => a.id !== accountId) as acc}
+								<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
+							{/each}
+						</select>
+					</div>
+				{/if}
+			</div>
+
 			<!-- Categoria -->
+			{#if type !== 'transfer'}
 			<div>
 				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Categoría</label>
 				<div class="mt-1 flex gap-2">
@@ -251,6 +337,7 @@
 					</div>
 				{/if}
 			</div>
+			{/if}
 
 			<!-- Nota -->
 			<div>
