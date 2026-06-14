@@ -33,7 +33,7 @@
 			class="text-5xl font-extrabold tracking-tight"
 			style="background: {summary.balance >= 0 ? 'linear-gradient(135deg, var(--color-primary), var(--color-accent))' : 'linear-gradient(135deg, var(--color-danger), #f43f5e)'}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
 		>
-			S/ {summary.balance.toFixed(2)}
+			{financeStore.formatCurrency(summary.balance)}
 		</span>
 	</div>
 
@@ -61,7 +61,7 @@
 				
 				<div class="mt-4 relative z-10">
 					<div class="text-sm font-light opacity-80 mb-1">Saldo Disponible</div>
-					<div class="text-3xl font-extrabold tracking-tight">S/ {account.balance.toFixed(2)}</div>
+					<div class="text-3xl font-extrabold tracking-tight">{financeStore.formatCurrency(account.balance)}</div>
 				</div>
 			</div>
 		{/each}
@@ -76,7 +76,7 @@
 				</div>
 			</div>
 			<span class="text-xs font-medium text-text-secondary">Ingresos</span>
-			<div class="text-lg font-bold text-text">S/ {summary.income.toFixed(2)}</div>
+			<div class="text-lg font-bold text-text">{financeStore.formatCurrency(summary.income)}</div>
 		</div>
 
 		<div class="rounded-2xl p-4 shadow-sm bg-surface">
@@ -86,7 +86,7 @@
 				</div>
 			</div>
 			<span class="text-xs font-medium text-text-secondary">Gastos</span>
-			<div class="text-lg font-bold text-text">S/ {summary.expenses.toFixed(2)}</div>
+			<div class="text-lg font-bold text-text">{financeStore.formatCurrency(summary.expenses)}</div>
 		</div>
 	</div>
 
@@ -107,13 +107,13 @@
 				<!-- Proyección cierre de mes -->
 				<div class="flex flex-col items-center justify-center rounded-xl p-3 bg-bg">
 					<div class="text-sm font-extrabold leading-tight {health.projectedNet >= 0 ? 'text-success' : 'text-danger'}"
-					>{health.projectedNet >= 0 ? '' : '-'}S/ {Math.abs(health.projectedNet).toFixed(0)}</div>
+					>{health.projectedNet >= 0 ? '' : '-'}{financeStore.formatCurrency(Math.abs(health.projectedNet))}</div>
 					<div class="mt-0.5 text-center text-xs text-text-secondary">Proyección<br/>fin de mes</div>
 				</div>
 				<!-- Presupuesto diario -->
 				<div class="flex flex-col items-center justify-center rounded-xl p-3 bg-bg">
 					<div class="text-sm font-extrabold leading-tight {health.dailyBudgetLeft >= 0 ? 'text-success' : 'text-danger'}"
-					>S/ {Math.abs(health.dailyBudgetLeft).toFixed(0)}</div>
+					>{financeStore.formatCurrency(Math.abs(health.dailyBudgetLeft))}</div>
 					<div class="mt-0.5 text-center text-xs text-text-secondary">Disponible<br/>/día ({health.daysLeft}d)</div>
 				</div>
 			</div>
@@ -194,7 +194,7 @@
 				<PiggyBank size={20} />
 			</div>
 		</div>
-		<div class="text-2xl font-bold">S/ {summary.savings.toFixed(2)}</div>
+		<div class="text-2xl font-bold">{financeStore.formatCurrency(summary.savings)}</div>
 		<p class="mt-1 text-xs opacity-75">
 			{financeStore.goals.length > 0
 				? `${financeStore.goals.length} meta${financeStore.goals.length > 1 ? 's' : ''} de ahorro activa${financeStore.goals.length > 1 ? 's' : ''}`

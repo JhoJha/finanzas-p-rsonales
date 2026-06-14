@@ -3,6 +3,8 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { Download, Upload, Settings } from '@lucide/svelte';
 
+	import { exportTransactionsToCSV } from '$lib/utils/csv';
+
 	function exportData() {
 		const json = financeStore.exportToJSON();
 		const blob = new Blob([json], { type: 'application/json' });
@@ -13,6 +15,18 @@
 		a.click();
 		URL.revokeObjectURL(url);
 		toastStore.add('📦 Backup exportado correctamente');
+	}
+
+	function exportCSV() {
+		const csv = exportTransactionsToCSV();
+		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `finanzas_transacciones_${new Date().toISOString().split('T')[0]}.csv`;
+		a.click();
+		URL.revokeObjectURL(url);
+		toastStore.add('📊 CSV exportado correctamente');
 	}
 
 	function importData() {
@@ -39,6 +53,33 @@
 		<h1 class="text-2xl font-bold" style="color: var(--color-text);">Ajustes</h1>
 	</div>
 
+	<div class="mb-6 rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+		<h2 class="mb-4 text-lg font-semibold" style="color: var(--color-text);">Administración</h2>
+		<div class="flex flex-col gap-3">
+			<a href="/ajustes/cuentas" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
+				<div class="flex items-center gap-3">
+					<span class="text-xl">💳</span>
+					<span class="font-medium" style="color: var(--color-text);">Mis Cuentas</span>
+				</div>
+				<span style="color: var(--color-text-secondary);">➔</span>
+			</a>
+			<a href="/ajustes/categorias" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
+				<div class="flex items-center gap-3">
+					<span class="text-xl">🎨</span>
+					<span class="font-medium" style="color: var(--color-text);">Categorías</span>
+				</div>
+				<span style="color: var(--color-text-secondary);">➔</span>
+			</a>
+			<a href="/ajustes/moneda" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
+				<div class="flex items-center gap-3">
+					<span class="text-xl">🌍</span>
+					<span class="font-medium" style="color: var(--color-text);">Moneda y Cambio</span>
+				</div>
+				<span style="color: var(--color-text-secondary);">➔</span>
+			</a>
+		</div>
+	</div>
+
 	<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 		<h2 class="mb-2 text-lg font-semibold" style="color: var(--color-text);">Copia de Seguridad</h2>
 		<p class="mb-4 text-sm" style="color: var(--color-text-secondary);">
@@ -52,6 +93,13 @@
 				style="background-color: color-mix(in srgb, var(--color-primary) 10%, transparent); color: var(--color-primary);"
 			>
 				<Download size={18} /> Exportar Backup (.json)
+			</button>
+			<button
+				onclick={exportCSV}
+				class="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all active:scale-95"
+				style="background-color: color-mix(in srgb, #10b981 10%, transparent); color: #10b981;"
+			>
+				<Download size={18} /> Exportar Excel (.csv)
 			</button>
 			<button
 				onclick={importData}

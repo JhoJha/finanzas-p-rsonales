@@ -62,7 +62,7 @@
 			</div>
 
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-14">Límite (S/)</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-14">Límite (Moneda Base)</label>
 				<input id="a11y-14"
 					type="number"
 					bind:value={amount}
@@ -106,9 +106,9 @@
 
 					<div class="mb-1 flex justify-between text-xs font-medium">
 						<span style="color: {progress.percent > 100 ? 'var(--color-danger)' : 'var(--color-text-secondary)'};">
-							S/ {progress.spent.toFixed(2)} gastado
+							{financeStore.formatCurrency(progress.spent)} gastado
 						</span>
-						<span style="color: var(--color-text);">S/ {budget.amount.toFixed(2)}</span>
+						<span style="color: var(--color-text);">{financeStore.formatCurrency(budget.amount)}</span>
 					</div>
 
 					<!-- Barra de progreso -->

@@ -98,7 +98,7 @@
 			Total Pendiente ({activeTab === 'i_owe' ? 'por pagar' : 'por cobrar'})
 		</span>
 		<div class="text-3xl font-bold" style="color: {activeTab === 'i_owe' ? 'var(--color-danger)' : 'var(--color-success)'};">
-			S/ {totalPending.toFixed(2)}
+			{financeStore.formatCurrency(totalPending)}
 		</div>
 	</div>
 
@@ -124,8 +124,8 @@
 				</div>
 
 				<div class="mb-1 flex justify-between text-sm font-medium">
-					<span style="color: var(--color-text-secondary);">S/ {debt.paidAmount.toFixed(2)} abonado</span>
-					<span style="color: var(--color-text);">S/ {debt.totalAmount.toFixed(2)}</span>
+					<span style="color: var(--color-text-secondary);">{financeStore.formatCurrency(debt.paidAmount)} abonado</span>
+					<span style="color: var(--color-text);">{financeStore.formatCurrency(debt.totalAmount)}</span>
 				</div>
 
 				<!-- Barra de progreso -->
@@ -170,7 +170,7 @@
 				<input id="a11y-15" type="text" bind:value={contactName} placeholder="Ej. Juan, Tarjeta Ripley..." class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
 			</div>
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-16">Monto Total (S/)</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-16">Monto Total (Moneda Base)</label>
 				<input id="a11y-16" type="number" bind:value={totalAmount} placeholder="0.00" class="mt-1 w-full rounded-xl p-3 text-lg font-bold outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
 			</div>
 			<div>
@@ -195,7 +195,7 @@
 		
 		<div class="space-y-4">
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-18">Monto a abonar (S/)</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-18">Monto a abonar (Moneda Base)</label>
 				<input id="a11y-18" type="number" bind:value={payAmount} placeholder="0.00" class="mt-1 w-full rounded-xl p-3 text-lg font-bold outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
 			</div>
 			
@@ -205,7 +205,7 @@
 				</label>
 				<select id="a11y-19" bind:value={payAccountId} class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);">
 					{#each financeStore.accounts as acc}
-						<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
+						<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
 					{/each}
 				</select>
 			</div>

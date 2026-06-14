@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { themeStore, themes, type ThemeId } from '$lib/theme.svelte';
-	import { Settings, X } from '@lucide/svelte';
+	import { Settings, X, DollarSign } from '@lucide/svelte';
+	import { financeStore } from '$lib/store.svelte';
 
 	let open = $state(false);
 	let current = $derived(themeStore.current);
@@ -80,13 +81,13 @@
 			<p class="mb-2 text-xs font-semibold" style="color: var(--color-text-secondary);">Vista previa</p>
 			<div class="flex items-center gap-3">
 				<div class="flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-bold" style="background-color: var(--color-primary);">
-					S/
+					<DollarSign size={20} />
 				</div>
 				<div>
 					<p class="text-sm font-medium" style="color: var(--color-text);">Gasto en almuerzo</p>
-					<p class="text-xs" style="color: var(--color-text-secondary);">- S/ 15.00</p>
+					<p class="text-xs" style="color: var(--color-text-secondary);">- {financeStore.formatCurrency(15.00)}</p>
 				</div>
-				<span class="ml-auto font-bold" style="color: var(--color-danger);">-S/15.00</span>
+				<span class="ml-auto font-bold" style="color: var(--color-danger);">-{financeStore.formatCurrency(15.00)}</span>
 			</div>
 		</div>
 	</div>

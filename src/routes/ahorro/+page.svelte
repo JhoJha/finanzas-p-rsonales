@@ -80,7 +80,7 @@
 
 		abonarGoalId = null;
 		abonarAmount = '';
-		toastStore.add(`💰 S/ ${amount.toFixed(2)} transferidos a ${goalName}`);
+		toastStore.add(`💰 ${financeStore.formatCurrency(amount)} transferidos a ${goalName}`);
 	}
 
 	function deleteGoal(id: string) {
@@ -123,7 +123,7 @@
 				<input
 					type="number"
 					bind:value={newGoalAmount}
-					placeholder="Monto objetivo (S/)"
+					placeholder="Monto objetivo (Moneda Base)"
 					class="w-full rounded-xl p-3 text-sm outline-none transition-all"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				/>
@@ -194,8 +194,8 @@
 
 					<div class="mb-4 mt-2">
 						<div class="flex justify-between text-xs mb-1" style="color: var(--color-text-secondary);">
-							<span>S/ {goal.currentAmount.toFixed(2)}</span>
-							<span>S/ {goal.targetAmount.toFixed(2)}</span>
+							<span>{financeStore.formatCurrency(goal.currentAmount)}</span>
+							<span>{financeStore.formatCurrency(goal.targetAmount)}</span>
 						</div>
 						<div class="h-3 w-full rounded-full overflow-hidden" style="background-color: var(--color-bg);">
 							<div
@@ -222,7 +222,7 @@
 									>{daysLeft === 0 ? '¡Vence hoy!' : `${daysLeft} días`}</span>
 								</div>
 								{#if dailyNeeded !== null}
-									<span class="text-xs font-semibold" style="color: var(--color-primary);">S/ {dailyNeeded.toFixed(0)}/día</span>
+									<span class="text-xs font-semibold" style="color: var(--color-primary);">{financeStore.formatCurrency(dailyNeeded)}/día</span>
 								{/if}
 							</div>
 						{/if}
@@ -271,7 +271,7 @@
 
 		<div class="space-y-4">
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-20">Monto a ahorrar (S/)</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-20">Monto a ahorrar (Moneda Base)</label>
 				<input id="a11y-20"
 					type="number"
 					bind:value={abonarAmount}
@@ -289,7 +289,7 @@
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				>
 					{#each financeStore.accounts as acc}
-						<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
+						<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
 					{/each}
 				</select>
 			</div>

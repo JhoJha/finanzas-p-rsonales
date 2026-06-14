@@ -17,7 +17,13 @@ export const AccountSchema = z.object({
 	name: z.string(),
 	type: z.enum(['cash', 'bank', 'credit']),
 	balance: z.number(),
-	color: z.string().optional()
+	color: z.string().optional(),
+	currency: z.string().optional()
+});
+
+export const SettingsSchema = z.object({
+	baseCurrency: z.string(),
+	exchangeRates: z.record(z.string(), z.number())
 });
 
 export const TransactionSchema = z.object({
@@ -29,7 +35,8 @@ export const TransactionSchema = z.object({
 	accountId: z.string(),
 	toAccountId: z.string().optional(),
 	note: z.string().optional(),
-	type: z.enum(['expense', 'income', 'transfer'])
+	type: z.enum(['expense', 'income', 'transfer']),
+	tags: z.array(z.string()).optional()
 });
 
 export const GoalSchema = z.object({
@@ -77,6 +84,7 @@ export type Account = z.infer<typeof AccountSchema>;
 export type Budget = z.infer<typeof BudgetSchema>;
 export type RecurringTransaction = z.infer<typeof RecurringTransactionSchema>;
 export type Debt = z.infer<typeof DebtSchema>;
+export type Settings = z.infer<typeof SettingsSchema>;
 
 export const defaultCategories: Category[] = [
 	{ id: '1', name: 'Alimentación', icon: 'pizza', color: 'bg-orange-500', type: 'expense' },

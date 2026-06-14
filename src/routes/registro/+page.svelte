@@ -227,7 +227,7 @@
 			<!-- Monto -->
 			<div>
 				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-1">
-					Monto (S/) <span class="font-normal opacity-70">(soporta sumas ej. 15+20)</span>
+					Monto (Moneda Base) <span class="font-normal opacity-70">(soporta sumas ej. 15+20)</span>
 				</label>
 				<input id="a11y-1"
 					type="text"
@@ -252,7 +252,7 @@
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 					>
 						{#each financeStore.accounts as acc}
-							<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
+							<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
 						{/each}
 					</select>
 				</div>
@@ -266,7 +266,7 @@
 							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 						>
 							{#each financeStore.accounts.filter(a => a.id !== accountId) as acc}
-								<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
+								<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
 							{/each}
 						</select>
 					</div>

@@ -181,7 +181,7 @@
 							class="text-sm font-bold"
 							style="color: {t.type === 'income' ? 'var(--color-success)' : 'var(--color-danger)'};"
 						>
-							{t.type === 'income' ? '+' : '-'}S/ {t.amount.toFixed(2)}
+							{t.type === 'income' ? '+' : '-'}{financeStore.formatCurrency(t.amount)}
 						</span>
 						
 						<!-- Acciones -->

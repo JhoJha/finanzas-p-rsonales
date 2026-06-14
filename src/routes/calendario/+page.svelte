@@ -192,7 +192,7 @@
 								</p>
 							</div>
 						</div>
-						<span class="font-bold text-sm" style="color: var(--color-text);">S/ {event.amount.toFixed(2)}</span>
+						<span class="font-bold text-sm" style="color: var(--color-text);">{financeStore.formatCurrency(event.amount)}</span>
 					</div>
 				{/each}
 			</div>

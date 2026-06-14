@@ -16,15 +16,38 @@
 			: [...financeStore.getTransactionsByPeriod(selectedPeriod)].reverse()
 	);
 
-	// Filtro adicional por búsqueda de texto
+	let showFilters = $state(false);
+	let minAmount = $state<number | null>(null);
+	let maxAmount = $state<number | null>(null);
+	let startDate = $state<string>('');
+	let endDate = $state<string>('');
+
+	// Filtro avanzado
 	let displayedTransactions = $derived(() => {
-		if (!searchQuery.trim()) return filteredTransactions;
-		const q = searchQuery.toLowerCase().trim();
-		return filteredTransactions.filter(t => {
-			const note = (t.note || '').toLowerCase();
-			const catName = (financeStore.categories.find(c => c.id === t.categoryId)?.name || '').toLowerCase();
-			return note.includes(q) || catName.includes(q);
-		});
+		let result = filteredTransactions;
+
+		if (minAmount !== null) result = result.filter(t => t.amount >= minAmount!);
+		if (maxAmount !== null) result = result.filter(t => t.amount <= maxAmount!);
+		if (startDate) {
+			const startTs = new Date(startDate + 'T00:00:00').getTime();
+			result = result.filter(t => t.timestamp! >= startTs);
+		}
+		if (endDate) {
+			const endTs = new Date(endDate + 'T23:59:59').getTime();
+			result = result.filter(t => t.timestamp! <= endTs);
+		}
+
+		if (searchQuery.trim()) {
+			const q = searchQuery.toLowerCase().trim();
+			result = result.filter(t => {
+				const note = (t.note || '').toLowerCase();
+				const catName = (financeStore.categories.find(c => c.id === t.categoryId)?.name || '').toLowerCase();
+				const hasTag = t.tags?.some(tag => tag.toLowerCase().includes(q));
+				return note.includes(q) || catName.includes(q) || hasTag;
+			});
+		}
+
+		return result;
 	});
 
 	let summary = $derived({
@@ -74,11 +97,11 @@
 	<div class="grid grid-cols-2 gap-3">
 		<div class="rounded-2xl p-4 shadow-sm" style="background-color: var(--color-surface);">
 			<span class="text-xs font-medium" style="color: var(--color-text-secondary);">Ingresos</span>
-			<div class="text-xl font-bold" style="color: var(--color-success);">+ S/ {summary.income.toFixed(2)}</div>
+			<div class="text-xl font-bold" style="color: var(--color-success);">+ {financeStore.formatCurrency(summary.income)}</div>
 		</div>
 		<div class="rounded-2xl p-4 shadow-sm" style="background-color: var(--color-surface);">
 			<span class="text-xs font-medium" style="color: var(--color-text-secondary);">Gastos</span>
-			<div class="text-xl font-bold" style="color: var(--color-danger);">- S/ {summary.expenses.toFixed(2)}</div>
+			<div class="text-xl font-bold" style="color: var(--color-danger);">- {financeStore.formatCurrency(summary.expenses)}</div>
 		</div>
 	</div>
 
@@ -95,7 +118,7 @@
 						<h3 class="text-sm font-semibold" style="color: var(--color-text);">💡 Análisis Inteligente</h3>
 						<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">
 							<strong>{topCategory.name}</strong> es tu categoría con mayor gasto
-							({topCategory.percent}% del total = S/ {topCategory.amount.toFixed(2)}).
+							({topCategory.percent}% del total = {financeStore.formatCurrency(topCategory.amount)}).
 						</p>
 					</div>
 				</div>
@@ -121,10 +144,10 @@
 					</div>
 					<div>
 						<p class="text-sm font-medium" style="color: var(--color-text);">
-							Semana pasada: S/ {weekComparison.previous.toFixed(2)}
+							Semana pasada: {financeStore.formatCurrency(weekComparison.previous)}
 						</p>
 						<p class="text-xs" style="color: var(--color-text-secondary);">
-							Esta semana: S/ {weekComparison.current.toFixed(2)}
+							Esta semana: {financeStore.formatCurrency(weekComparison.current)}
 							<span style="color: {weekComparison.diff > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">
 								({weekComparison.diff > 0 ? '+' : ''}{weekComparison.diffPercent}%)
 							</span>
@@ -192,7 +215,7 @@
 						<div>
 							<div class="mb-1 flex justify-between text-sm">
 								<span class="font-medium" style="color: var(--color-text);">{item.name}</span>
-								<span class="font-bold" style="color: var(--color-text);">S/ {item.amount.toFixed(2)}</span>
+								<span class="font-bold" style="color: var(--color-text);">{financeStore.formatCurrency(item.amount)}</span>
 							</div>
 							<div class="h-2.5 w-full rounded-full" style="background-color: var(--color-bg);">
 								<div
@@ -235,24 +258,45 @@
 					</span>
 				</h2>
 			</div>
-			<!-- Buscador -->
 			<div class="relative mb-3">
 				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color: var(--color-text-secondary);">🔍</span>
 				<input
 					type="text"
 					bind:value={searchQuery}
-					placeholder="Buscar por nota o categoría..."
-					class="w-full rounded-xl py-2.5 pl-9 pr-3 text-sm outline-none transition-all focus:ring-2"
+					placeholder="Buscar por nota, #etiqueta o categoría..."
+					class="w-full rounded-xl py-2.5 pl-9 pr-10 text-sm outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				/>
-				{#if searchQuery}
-					<button
-						onclick={() => (searchQuery = '')}
-						class="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
-						style="color: var(--color-text-secondary);"
-					>✕</button>
-				{/if}
+				<button
+					onclick={() => (showFilters = !showFilters)}
+					class="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-xs transition-colors hover:bg-black/5"
+					style="color: {showFilters ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
+				>⚙️</button>
 			</div>
+
+			{#if showFilters}
+				<div class="mb-4 animate-fade-in-up grid grid-cols-2 gap-3 rounded-xl p-3" style="background-color: var(--color-bg); border: 1px solid var(--color-border);">
+					<div>
+						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Monto Mínimo</label>
+						<input type="number" bind:value={minAmount} placeholder="0.00" class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+					</div>
+					<div>
+						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Monto Máximo</label>
+						<input type="number" bind:value={maxAmount} placeholder="1000.00" class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+					</div>
+					<div>
+						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Desde</label>
+						<input type="date" bind:value={startDate} class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+					</div>
+					<div>
+						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Hasta</label>
+						<input type="date" bind:value={endDate} class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+					</div>
+					<div class="col-span-2 text-right">
+						<button onclick={() => { minAmount = null; maxAmount = null; startDate = ''; endDate = ''; }} class="text-xs underline" style="color: var(--color-text-secondary);">Limpiar Filtros</button>
+					</div>
+				</div>
+			{/if}
 			<TransactionHistory transactions={displayedTransactions()} />
 		</div>
 	{/if}

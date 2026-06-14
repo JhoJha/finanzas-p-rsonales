@@ -91,7 +91,7 @@
 		<!-- Monto y Frecuencia -->
 		<div class="flex gap-2">
 			<div class="flex-1">
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-6">Monto (S/)</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-6">Monto (Moneda Base)</label>
 				<input id="a11y-6"
 					type="number"
 					bind:value={amount}
@@ -226,7 +226,7 @@
 				<div class="flex items-center gap-3">
 					<div class="text-right">
 						<span class="font-bold" style="color: {rt.type === 'expense' ? 'var(--color-danger)' : rt.type === 'income' ? 'var(--color-success)' : 'var(--color-text)'};">
-							{rt.type === 'expense' ? '-' : rt.type === 'income' ? '+' : ''}S/ {rt.amount.toFixed(2)}
+							{rt.type === 'expense' ? '-' : rt.type === 'income' ? '+' : ''}{financeStore.formatCurrency(rt.amount)}
 						</span>
 						<div class="text-xs opacity-70">{account?.name || 'Cuenta'}</div>
 					</div>

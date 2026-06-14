@@ -1,4 +1,4 @@
-import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema, CategorySchema, GoalSchema, AccountSchema, BudgetSchema, RecurringTransactionSchema, DebtSchema } from './schema';
+import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema, CategorySchema, GoalSchema, AccountSchema, BudgetSchema, RecurringTransactionSchema, DebtSchema } from './schema';
 import { toastStore } from './toast.svelte';
 import { browser } from '$app/environment';
 
@@ -9,6 +9,8 @@ import { GoalsStore } from './stores/goals.svelte';
 import { BudgetsStore } from './stores/budgets.svelte';
 import { DebtsStore } from './stores/debts.svelte';
 import { RecurringStore } from './stores/recurring.svelte';
+import { SettingsStore } from './stores/settings.svelte';
+import { convertToBaseCurrency, formatCurrency } from './utils/currency';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -20,6 +22,7 @@ class FinanceStoreFacade {
 	private budgetsStore = new BudgetsStore();
 	private debtsStore = new DebtsStore();
 	private recurringStore = new RecurringStore();
+	private settingsStore = new SettingsStore();
 
 	isReady = $state(false);
 
@@ -37,7 +40,8 @@ class FinanceStoreFacade {
 			this.goalsStore.init(),
 			this.budgetsStore.init(),
 			this.debtsStore.init(),
-			this.recurringStore.init()
+			this.recurringStore.init(),
+			this.settingsStore.init()
 		]);
 		
 		this.recalculateBalances();
@@ -79,6 +83,7 @@ class FinanceStoreFacade {
 	get recurringTransactions() { return this.recurringStore.data; }
 	get debts() { return this.debtsStore.data; }
 	get accounts() { return this.accountsStore.data; }
+	get settings() { return this.settingsStore.data; }
 
 	// === Transactions ===
 	addTransaction(transaction: Transaction) {
@@ -125,6 +130,10 @@ class FinanceStoreFacade {
 	}
 
 	// === Categories ===
+	addCategory(category: Category) {
+		this.categoriesStore.addCategory(category);
+	}
+
 	deleteCategory(id: string) {
 		const hasTx = this.transactions.some(t => t.categoryId === id);
 		if (hasTx) {
@@ -230,17 +239,20 @@ class FinanceStoreFacade {
 
 	// === Derived Summaries & Health ===
 	get summary() {
-		const income = this.transactions
-			.filter((t) => t.type === 'income')
-			.reduce((acc, t) => acc + t.amount, 0);
-
-		const expenses = this.transactions
-			.filter((t) => t.type === 'expense')
-			.reduce((acc, t) => acc + t.amount, 0);
-
-		const savings = this.goals.reduce((acc, g) => acc + g.currentAmount, 0);
+		// Calculate converted totals
+		let income = 0;
+		let expenses = 0;
 		
-		const balance = this.accounts.reduce((acc, a) => acc + a.balance, 0);
+		this.transactions.forEach(t => {
+			const account = this.accounts.find(a => a.id === t.accountId);
+			const convertedAmount = convertToBaseCurrency(t.amount, account?.currency);
+			if (t.type === 'income') income += convertedAmount;
+			else if (t.type === 'expense') expenses += convertedAmount;
+		});
+
+		const savings = this.goals.reduce((acc, g) => acc + g.currentAmount, 0); // Goals usually in base currency for now
+		
+		const balance = this.accounts.reduce((acc, a) => acc + convertToBaseCurrency(a.balance, a.currency), 0);
 
 		return { income, expenses, balance, savings };
 	}
@@ -473,6 +485,14 @@ class FinanceStoreFacade {
 		} catch {
 			return false;
 		}
+	}
+	// === Settings ===
+	updateSettings(newData: Partial<Settings>) {
+		this.settingsStore.updateSettings(newData);
+	}
+
+	formatCurrency(amount: number, currencyCode?: string): string {
+		return formatCurrency(amount, currencyCode);
 	}
 }
 
