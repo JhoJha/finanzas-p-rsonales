@@ -5,7 +5,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
 	import ToastProvider from '$lib/components/ToastProvider.svelte';
-	import { themeStore } from '$lib/theme.svelte';
+	import { themeStore, themes } from '$lib/theme.svelte';
 	import { Download } from '@lucide/svelte';
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
@@ -13,6 +13,7 @@
 	let { children } = $props();
 
 	let isDark = $derived(themeStore.current === 'dark');
+	let currentThemeColor = $derived(themes.find(t => t.id === themeStore.current)?.color || '#2563eb');
 
 	let deferredPrompt = $state<any>(null);
 	let showInstallBanner = $state(false);
@@ -68,7 +69,7 @@
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<title>Gestor Inteligente</title>
-	<meta name="theme-color" content={isDark ? '#0f172a' : '#2563eb'} />
+	<meta name="theme-color" content={currentThemeColor} />
 </svelte:head>
 
 <div class="flex h-screen flex-col" style="background-color: var(--color-bg); color: var(--color-text);">
