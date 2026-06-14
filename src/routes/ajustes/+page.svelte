@@ -2,6 +2,7 @@
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
 	import { Download, Upload, Settings } from '@lucide/svelte';
+	import ThemePicker from '$lib/components/ThemePicker.svelte';
 
 	import { exportTransactionsToCSV } from '$lib/utils/csv';
 
@@ -52,6 +53,8 @@
 		<Settings size={28} style="color: var(--color-primary);" />
 		<h1 class="text-2xl font-bold" style="color: var(--color-text);">Ajustes</h1>
 	</div>
+
+	<ThemePicker />
 
 	<div class="mb-6 rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 		<h2 class="mb-4 text-lg font-semibold" style="color: var(--color-text);">Administración</h2>

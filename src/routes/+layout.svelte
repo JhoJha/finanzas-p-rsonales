@@ -3,7 +3,6 @@
 	import { Home, PlusCircle, Target, TrendingUp, Sun, Moon, Settings, Download, Plus } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.svg';
-	import ThemePicker from '$lib/components/ThemePicker.svelte';
 	import ToastProvider from '$lib/components/ToastProvider.svelte';
 	import { themeStore, themes } from '$lib/theme.svelte';
 	import { financeStore } from '$lib/store.svelte';
@@ -109,7 +108,6 @@
 			<Settings size={20} />
 		</a>
 
-		<!-- Botón modo oscuro -->
 		<button
 			onclick={() => themeStore.toggleDark()}
 			class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"
@@ -121,8 +119,6 @@
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
 			{/if}
 		</button>
-
-		<ThemePicker />
 	</header>
 
 	{#if showInstallBanner}
