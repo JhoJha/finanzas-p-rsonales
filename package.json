@@ -28,6 +28,7 @@
 		"@lucide/svelte": "^1.18.0",
 		"chart.js": "^4.5.1",
 		"clsx": "^2.1.1",
+		"idb-keyval": "^6.2.5",
 		"lucide-svelte": "^1.0.1",
 		"tailwind-merge": "^3.6.0",
 		"zod": "^4.4.3"
