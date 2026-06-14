@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
+	import { toastStore } from '$lib/toast.svelte';
 	import type { Goal } from '$lib/schema';
+	import { INTERNAL_CATEGORY_SAVINGS } from '$lib/schema';
 	import { Plus, Target, CheckCircle2, Trash2, Download, Upload, PiggyBank, X } from '@lucide/svelte';
-	import Toast from '$lib/components/Toast.svelte';
 
 	let showingNewGoal = $state(false);
 	let newGoalName = $state('');
@@ -11,6 +12,7 @@
 	// Modal para abonar
 	let abonarGoalId = $state<string | null>(null);
 	let abonarAmount = $state('');
+	let abonarAccountId = $state(financeStore.accounts[0]?.id || 'default-cash');
 
 	// Toast
 	let toastMessage = $state('');
@@ -25,7 +27,7 @@
 
 	function saveGoal() {
 		if (!newGoalName || !newGoalAmount || isNaN(parseFloat(newGoalAmount))) {
-			showToastMsg('Completa todos los campos', 'error');
+			toastStore.add('Completa todos los campos', 'error');
 			return;
 		}
 
@@ -40,12 +42,13 @@
 		showingNewGoal = false;
 		newGoalName = '';
 		newGoalAmount = '';
-		showToastMsg(`🎯 Meta "${goal.name}" creada`);
+		toastStore.add(`🎯 Meta "${goal.name}" creada`);
 	}
 
 	function openAbonar(goalId: string) {
 		abonarGoalId = goalId;
 		abonarAmount = '';
+		abonarAccountId = financeStore.accounts[0]?.id || 'default-cash';
 	}
 
 	function confirmAddSavings() {
@@ -54,26 +57,27 @@
 		const amount = parseFloat(abonarAmount);
 		financeStore.updateGoalProgress(abonarGoalId, amount);
 
-		// Registrar como gasto de transferencia
+		// Registrar como gasto desde la cuenta elegida con categoría interna de ahorro
 		const goalName = financeStore.goals.find((g) => g.id === abonarGoalId)?.name;
 		financeStore.addTransaction({
 			id: crypto.randomUUID(),
 			date: new Date().toISOString(),
 			amount,
-			categoryId: 'transfer',
+			categoryId: INTERNAL_CATEGORY_SAVINGS,
+			accountId: abonarAccountId,
 			type: 'expense',
-			note: `Transferencia a ahorro: ${goalName}`
+			note: `Ahorro: ${goalName}`
 		});
 
 		abonarGoalId = null;
 		abonarAmount = '';
-		showToastMsg(`💰 S/ ${amount.toFixed(2)} transferidos a ${goalName}`);
+		toastStore.add(`💰 S/ ${amount.toFixed(2)} transferidos a ${goalName}`);
 	}
 
 	function deleteGoal(id: string) {
 		if (confirm('¿Eliminar esta meta de ahorro?')) {
 			financeStore.deleteGoal(id);
-			showToastMsg('Meta eliminada');
+			toastStore.add('Meta eliminada', 'info');
 		}
 	}
 
@@ -86,7 +90,7 @@
 		a.download = `finanzas_backup_${new Date().toISOString().split('T')[0]}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
-		showToastMsg('📦 Backup exportado correctamente');
+		toastStore.add('📦 Backup exportado correctamente');
 	}
 
 	function importData() {
@@ -98,16 +102,14 @@
 			if (!file) return;
 			const text = await file.text();
 			if (financeStore.importFromJSON(text)) {
-				showToastMsg('📦 Datos importados correctamente');
+				toastStore.add('📦 Datos importados correctamente');
 			} else {
-				showToastMsg('❌ Archivo inválido', 'error');
+				toastStore.add('❌ Archivo inválido o corrupto', 'error');
 			}
 		};
 		input.click();
 	}
 </script>
-
-<Toast message={toastMessage} type={toastType} visible={showToast} />
 
 <div class="animate-fade-in-up space-y-6">
 	<!-- Encabezado y botón de agregar -->
@@ -286,6 +288,19 @@
 					class="mt-1 w-full rounded-xl p-3.5 text-lg font-bold outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				/>
+			</div>
+
+			<div>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Descontar de cuenta</label>
+				<select
+					bind:value={abonarAccountId}
+					class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
+					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+				>
+					{#each financeStore.accounts as acc}
+						<option value={acc.id}>{acc.name} (S/ {acc.balance.toFixed(2)})</option>
+					{/each}
+				</select>
 			</div>
 
 			<div class="flex gap-2">

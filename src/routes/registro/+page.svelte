@@ -6,7 +6,6 @@
 	import type { Transaction, Category } from '$lib/schema';
 	import { Mic, MicOff, Save, Plus, X } from '@lucide/svelte';
 	import { parseSpeech } from '$lib/utils/speechParser';
-	import Toast from '$lib/components/Toast.svelte';
 
 	let amount = $state('');
 	let categoryId = $state('1');
@@ -16,20 +15,15 @@
 	let note = $state('');
 	let isRecording = $state(false);
 	let dictationResult = $state('');
-	let toastMessage = $state('');
-	let toastType = $state<'success' | 'error' | 'info'>('success');
-	let showToast = $state(false);
 
-	// Nueva categoría personalizada
+	// Categoría personalizada
 	let showNewCategory = $state(false);
 	let newCatName = $state('');
 
 	const categories = financeStore.categories;
 
 	function showToastMsg(msg: string, type: 'success' | 'error' | 'info' = 'success') {
-		toastMessage = msg;
-		toastType = type;
-		showToast = true;
+		toastStore.add(msg, type);
 	}
 
 	function evaluateMath(expression: string): number | null {
@@ -155,8 +149,6 @@
 		recognition.start();
 	}
 </script>
-
-<Toast message={toastMessage} type={toastType} visible={showToast} />
 
 <div class="animate-fade-in-up space-y-5">
 	<h1 class="text-2xl font-bold" style="color: var(--color-text);">Registro Rápido</h1>

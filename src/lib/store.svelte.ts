@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { type Category, type Transaction, type Goal, defaultCategories, type Account, type Budget, type RecurringTransaction, type Debt } from './schema';
+import { type Category, type Transaction, type Goal, defaultCategories, type Account, type Budget, type RecurringTransaction, type Debt, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema, CategorySchema, GoalSchema, AccountSchema, BudgetSchema, RecurringTransactionSchema, DebtSchema } from './schema';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -22,7 +22,14 @@ export class FinanceStore {
 			const storedRecurring = localStorage.getItem('finances_recurring');
 			const storedDebts = localStorage.getItem('finances_debts');
 
-			if (storedCategories) this.categories = JSON.parse(storedCategories);
+			if (storedCategories) {
+				const parsed: Category[] = JSON.parse(storedCategories);
+				// Fusionar con las categorías internas del sistema para que nunca se pierdan
+				const internalIds = [INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS];
+				const internalCats = defaultCategories.filter(c => internalIds.includes(c.id));
+				const userCats = parsed.filter(c => !internalIds.includes(c.id));
+				this.categories = [...userCats, ...internalCats];
+			}
 			if (storedGoals) this.goals = JSON.parse(storedGoals);
 			if (storedAccounts) this.accounts = JSON.parse(storedAccounts);
 			if (storedBudgets) this.budgets = JSON.parse(storedBudgets);
@@ -187,16 +194,16 @@ export class FinanceStore {
 			debt.status = 'paid';
 		}
 
-		// Crear transacción real
-		// Si es 'i_owe' (yo debo), hacer el pago es un gasto.
+		// Crear transacción real usando categorías internas del sistema
+		// Si es 'i_owe' (yo debo), pagar es un gasto.
 		// Si es 'owed_to_me' (me deben), recibir el pago es un ingreso.
 		const isExpense = debt.type === 'i_owe';
-		
+
 		const newTx: Transaction = {
 			id: crypto.randomUUID(),
 			date: new Date().toISOString(),
 			amount: amount,
-			categoryId: isExpense ? '1' : '6', // Usa categorías por defecto de Gasto(1)/Ingreso(6) (Idealmente deberíamos tener una categoría 'Deuda' fija)
+			categoryId: INTERNAL_CATEGORY_DEBT_PAYMENT,
 			accountId: accountId,
 			note: `Abono a deuda: ${debt.contactName}`,
 			type: isExpense ? 'expense' : 'income'
@@ -383,23 +390,54 @@ export class FinanceStore {
 		return { current, previous, diff, diffPercent };
 	}
 
-	/** Exportar datos como JSON */
+	/** Exportar datos como JSON (backup completo) */
 	exportToJSON(): string {
 		return JSON.stringify({
 			transactions: this.transactions,
 			categories: this.categories,
 			goals: this.goals,
+			accounts: this.accounts,
+			budgets: this.budgets,
+			recurringTransactions: this.recurringTransactions,
+			debts: this.debts,
 			exportedAt: new Date().toISOString()
 		}, null, 2);
 	}
 
-	/** Importar datos desde JSON */
+	/** Importar datos desde JSON con validación Zod */
 	importFromJSON(json: string): boolean {
 		try {
 			const data = JSON.parse(json);
-			if (data.transactions) this.transactions = data.transactions;
-			if (data.categories) this.categories = data.categories;
-			if (data.goals) this.goals = data.goals;
+
+			if (data.transactions && Array.isArray(data.transactions)) {
+				const parsed = data.transactions.map((t: unknown) => TransactionSchema.parse(t));
+				this.transactions = parsed;
+			}
+			if (data.categories && Array.isArray(data.categories)) {
+				const parsed = data.categories.map((c: unknown) => CategorySchema.parse(c));
+				// Preservar siempre las categorías internas del sistema
+				const internalIds = [INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS];
+				const internalCats = defaultCategories.filter(c => internalIds.includes(c.id));
+				const userCats = parsed.filter((c: Category) => !internalIds.includes(c.id));
+				this.categories = [...userCats, ...internalCats];
+			}
+			if (data.goals && Array.isArray(data.goals)) {
+				this.goals = data.goals.map((g: unknown) => GoalSchema.parse(g));
+			}
+			if (data.accounts && Array.isArray(data.accounts)) {
+				this.accounts = data.accounts.map((a: unknown) => AccountSchema.parse(a));
+			}
+			if (data.budgets && Array.isArray(data.budgets)) {
+				this.budgets = data.budgets.map((b: unknown) => BudgetSchema.parse(b));
+			}
+			if (data.recurringTransactions && Array.isArray(data.recurringTransactions)) {
+				this.recurringTransactions = data.recurringTransactions.map((r: unknown) => RecurringTransactionSchema.parse(r));
+			}
+			if (data.debts && Array.isArray(data.debts)) {
+				this.debts = data.debts.map((d: unknown) => DebtSchema.parse(d));
+			}
+
+			this.recalculateBalances();
 			return true;
 		} catch {
 			return false;

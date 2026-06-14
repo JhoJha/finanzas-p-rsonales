@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/** IDs de categorías internas del sistema (no editables por el usuario) */
+export const INTERNAL_CATEGORY_DEBT_PAYMENT = '__debt-payment__';
+export const INTERNAL_CATEGORY_SAVINGS = '__savings__';
+
 export const CategorySchema = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -79,5 +83,8 @@ export const defaultCategories: Category[] = [
 	{ id: '3', name: 'Vivienda', icon: 'home', color: 'bg-green-500', type: 'expense' },
 	{ id: '4', name: 'Educación', icon: 'graduation-cap', color: 'bg-purple-500', type: 'expense' },
 	{ id: '5', name: 'Ocio', icon: 'gamepad-2', color: 'bg-pink-500', type: 'expense' },
-	{ id: '6', name: 'Trabajo / Ingresos', icon: 'briefcase', color: 'bg-yellow-500', type: 'income' }
+	{ id: '6', name: 'Trabajo / Ingresos', icon: 'briefcase', color: 'bg-yellow-500', type: 'income' },
+	// Categorías internas del sistema — no se muestran al usuario en los selectores
+	{ id: INTERNAL_CATEGORY_DEBT_PAYMENT, name: 'Pago de Deuda', icon: 'hand-coins', color: 'bg-amber-500', type: 'expense' },
+	{ id: INTERNAL_CATEGORY_SAVINGS, name: 'Ahorro / Meta', icon: 'piggy-bank', color: 'bg-teal-500', type: 'expense' }
 ];
