@@ -318,9 +318,11 @@
 											<span style="color: var(--color-text);">{cat.name}</span>
 											<button 
 												onclick={() => {
-													financeStore.deleteCategory(cat.id);
+												const success = financeStore.deleteCategory(cat.id);
+												if (success) {
 													vibrate([10, 30, 10]);
 													toastStore.add('Categoría eliminada', 'error');
+												}
 												}}
 												class="ml-1 flex h-4 w-4 items-center justify-center rounded-full text-red-500 hover:bg-red-100 transition-colors"
 												aria-label="Eliminar categoría"

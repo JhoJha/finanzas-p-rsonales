@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import { type Category, type Transaction, type Goal, defaultCategories, type Account, type Budget, type RecurringTransaction, type Debt, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema, CategorySchema, GoalSchema, AccountSchema, BudgetSchema, RecurringTransactionSchema, DebtSchema } from './schema';
+import { toastStore } from './toast.svelte';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -22,27 +23,50 @@ export class FinanceStore {
 			const storedRecurring = localStorage.getItem('finances_recurring');
 			const storedDebts = localStorage.getItem('finances_debts');
 
-			if (storedCategories) {
-				const parsed: Category[] = JSON.parse(storedCategories);
-				// Fusionar con las categorías internas del sistema para que nunca se pierdan
-				const internalIds = [INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS];
-				const internalCats = defaultCategories.filter(c => internalIds.includes(c.id));
-				const userCats = parsed.filter(c => !internalIds.includes(c.id));
-				this.categories = [...userCats, ...internalCats];
-			}
-			if (storedGoals) this.goals = JSON.parse(storedGoals);
-			if (storedAccounts) this.accounts = JSON.parse(storedAccounts);
-			if (storedBudgets) this.budgets = JSON.parse(storedBudgets);
-			if (storedRecurring) this.recurringTransactions = JSON.parse(storedRecurring);
-			if (storedDebts) this.debts = JSON.parse(storedDebts);
+			try {
+				if (storedCategories) {
+					const parsed: Category[] = JSON.parse(storedCategories);
+					const valid = parsed.filter(c => CategorySchema.safeParse(c).success);
+					// Fusionar con las categorías internas del sistema para que nunca se pierdan
+					const internalIds = [INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS];
+					const internalCats = defaultCategories.filter(c => internalIds.includes(c.id));
+					const userCats = valid.filter(c => !internalIds.includes(c.id));
+					this.categories = [...userCats, ...internalCats];
+				}
+			} catch (e) { console.error('Error parseando categories', e); }
 
-			if (storedTransactions) {
-				const parsedTx = JSON.parse(storedTransactions);
-				this.transactions = parsedTx.map((t: any) => ({
-					...t,
-					accountId: t.accountId || 'default-cash'
-				}));
-			}
+			try {
+				if (storedGoals) this.goals = JSON.parse(storedGoals).filter((g: any) => GoalSchema.safeParse(g).success);
+			} catch (e) { console.error('Error parseando goals', e); }
+
+			try {
+				if (storedAccounts) {
+					const parsed = JSON.parse(storedAccounts).filter((a: any) => AccountSchema.safeParse(a).success);
+					if (parsed.length > 0) this.accounts = parsed;
+				}
+			} catch (e) { console.error('Error parseando accounts', e); }
+
+			try {
+				if (storedBudgets) this.budgets = JSON.parse(storedBudgets).filter((b: any) => BudgetSchema.safeParse(b).success);
+			} catch (e) { console.error('Error parseando budgets', e); }
+
+			try {
+				if (storedRecurring) this.recurringTransactions = JSON.parse(storedRecurring).filter((r: any) => RecurringTransactionSchema.safeParse(r).success);
+			} catch (e) { console.error('Error parseando recurring', e); }
+
+			try {
+				if (storedDebts) this.debts = JSON.parse(storedDebts).filter((d: any) => DebtSchema.safeParse(d).success);
+			} catch (e) { console.error('Error parseando debts', e); }
+
+			try {
+				if (storedTransactions) {
+					const parsedTx = JSON.parse(storedTransactions);
+					this.transactions = parsedTx.map((t: any) => ({
+						...t,
+						accountId: t.accountId || 'default-cash'
+					})).filter((t: any) => TransactionSchema.safeParse(t).success);
+				}
+			} catch (e) { console.error('Error parseando transactions', e); }
 
 			this.recalculateBalances();
 			this.processRecurringTransactions();
@@ -134,7 +158,13 @@ export class FinanceStore {
 	}
 
 	deleteAccount(id: string) {
+		const hasTx = this.transactions.some(t => t.accountId === id || t.toAccountId === id);
+		if (hasTx) {
+			toastStore.add('No se puede eliminar la cuenta porque tiene transacciones asociadas.', 'error');
+			return false;
+		}
 		this.accounts = this.accounts.filter(a => a.id !== id);
+		return true;
 	}
 
 	addBudget(budget: Budget) {
@@ -222,7 +252,13 @@ export class FinanceStore {
 	}
 
 	deleteCategory(id: string) {
+		const hasTx = this.transactions.some(t => t.categoryId === id);
+		if (hasTx) {
+			toastStore.add('No se puede eliminar la categoría porque tiene transacciones asociadas.', 'error');
+			return false;
+		}
 		this.categories = this.categories.filter((c) => c.id !== id);
+		return true;
 	}
 
 	updateGoalProgress(id: string, amount: number) {
