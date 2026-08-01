@@ -21,6 +21,7 @@
 	let isLocked = $state(false);
 	let lockPin = $state('');
 	let lockError = $state('');
+	let recoveryError = $state('');
 	let missingExchangeRateCurrencies = $derived(financeStore.missingExchangeRateCurrencies);
 	let isReportRoute = $derived(['/', '/analisis', '/pronostico', '/cierre', '/patrimonio', '/presupuestos', '/suscripciones', '/buscar'].includes(page.url.pathname));
 	let isReportBlocked = $derived(financeStore.isReady && missingExchangeRateCurrencies.length > 0 && isReportRoute);
@@ -175,6 +176,23 @@
 		showInstallBanner = false;
 		if (isIosInstallable) sessionStorage.setItem('ios_install_dismissed', '1');
 	}
+
+	async function recoverFromBackup(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		try {
+			if (!financeStore.importFromJSON(await file.text())) {
+				recoveryError = 'No se pudo restaurar ese respaldo. Elige un archivo válido de esta aplicación.';
+				return;
+			}
+			recoveryError = '';
+		} catch {
+			recoveryError = 'No se pudo leer el archivo seleccionado.';
+		} finally {
+			input.value = '';
+		}
+	}
 </script>
 
 <svelte:head>
@@ -187,7 +205,7 @@
 <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
 <div class="flex min-h-[100dvh] flex-col bg-bg text-text">
 	<ToastProvider />
-	{#if financeStore.persistenceStatus === 'error' && !isLocked}
+	{#if financeStore.persistenceStatus === 'error' && !isLocked && !financeStore.recoveryRequired}
 		<div class="fixed left-4 right-4 top-3 z-[60] rounded-2xl p-3 shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-danger); color: var(--color-text);">
 			<p class="text-sm font-semibold">No se guardaron los últimos cambios.</p>
 			<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">{financeStore.persistenceError} Exporta un respaldo antes de cerrar o recargar.</p>
@@ -196,7 +214,19 @@
 	{:else if financeStore.persistenceStatus === 'saving'}
 		<div class="fixed right-4 top-3 z-[60] rounded-full px-3 py-1 text-xs shadow" style="background-color: var(--color-surface); color: var(--color-text-secondary); border: 1px solid var(--color-border);">Guardando cambios…</div>
 	{/if}
-	{#if isLocked}
+	{#if financeStore.recoveryRequired}
+		<main id="main-content" tabindex="-1" class="flex flex-1 items-center justify-center p-6">
+			<section class="w-full max-w-md rounded-3xl p-6 text-center shadow-lg" aria-labelledby="recovery-title" style="background-color: var(--color-surface); border: 1px solid var(--color-danger);">
+				<h1 id="recovery-title" class="text-xl font-bold" style="color: var(--color-text);">Tus datos necesitan recuperación</h1>
+				<p class="mt-3 text-sm" style="color: var(--color-text-secondary);">{financeStore.persistenceError}</p>
+				<p class="mt-2 text-sm" style="color: var(--color-text-secondary);">Nada se guardará ni se reemplazará hasta restaurar un respaldo compatible.</p>
+				<label for="recovery-backup" class="mt-5 flex min-h-11 cursor-pointer items-center justify-center rounded-xl px-4 py-3 text-sm font-bold text-white" style="background-color: var(--color-primary);">Elegir respaldo JSON</label>
+				<input id="recovery-backup" class="sr-only" type="file" accept="application/json,.json" onchange={recoverFromBackup} />
+				{#if recoveryError}<p role="alert" class="mt-3 text-sm" style="color: var(--color-danger);">{recoveryError}</p>{/if}
+				<p class="mt-5 text-xs" style="color: var(--color-text-secondary);">Si el aviso indica una versión más reciente, actualiza la aplicación y vuelve a abrirla.</p>
+			</section>
+		</main>
+	{:else if isLocked}
 		<main id="main-content" tabindex="-1" class="flex flex-1 items-center justify-center p-6">
 			<div class="w-full max-w-sm rounded-3xl p-6 text-center shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 				<div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style="background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);">🔒</div>

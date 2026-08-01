@@ -1,6 +1,6 @@
 import type { Account, Budget, Category, Debt, Goal, RecurringTransaction, Settings, Transaction } from '$lib/schema';
 import { parseAndValidateBackup } from '$lib/utils/backup';
-import { loadFinanceSnapshot, saveFinanceSnapshot } from '$lib/stores/storage';
+import { loadFinanceSnapshot, saveFinanceSnapshot, type FinanceStateSnapshot } from '$lib/stores/storage';
 
 export const CURRENT_FINANCE_STATE_VERSION = 6;
 
@@ -19,36 +19,79 @@ export interface FinanceState {
 export interface RepositoryLoadResult {
 	state: FinanceState;
 	migrated: boolean;
+	source: 'legacy' | 'snapshot';
+}
+
+/** El estado fue creado por una versión más reciente y no puede escribirse con seguridad. */
+export class FutureFinanceStateError extends Error {
+	constructor(version: number) {
+		super(`Este dispositivo contiene datos de la versión ${version}. Actualiza la aplicación antes de abrirlos.`);
+		this.name = 'FutureFinanceStateError';
+	}
+}
+
+/** El snapshot existe, pero no puede validarse sin arriesgar una sobrescritura. */
+export class CorruptFinanceStateError extends Error {
+	constructor(cause?: unknown) {
+		super('No se pudo leer el estado financiero guardado. Restaura un respaldo válido antes de continuar.');
+		this.name = 'CorruptFinanceStateError';
+		this.cause = cause;
+	}
 }
 
 /** Las migraciones son explícitas aunque hoy no requieran transformar campos. */
 export function migrateFinanceState(state: FinanceState): FinanceState {
 	let migrated = { ...state, version: state.version || 4 };
+	if (migrated.version > CURRENT_FINANCE_STATE_VERSION) throw new FutureFinanceStateError(migrated.version);
 	if (migrated.version < 5) migrated = { ...migrated, version: 5 }; // v4 -> v5: snapshot consolidado
 	if (migrated.version < 6) migrated = { ...migrated, version: 6 }; // v5 -> v6: repositorio único
 	return migrated;
 }
 
+function rawVersion(snapshot: unknown): number {
+	if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) throw new CorruptFinanceStateError();
+	const version = (snapshot as FinanceStateSnapshot).version ?? 4;
+	if (!Number.isInteger(version) || version <= 0) throw new CorruptFinanceStateError();
+	return version;
+}
+
 export class FinanceRepository {
+	/** Valida, normaliza y migra cualquier backup mediante el mismo pipeline del snapshot. */
+	deserialize(json: string, fallbackSettings: Settings): FinanceState {
+		try {
+			const raw = JSON.parse(json) as FinanceStateSnapshot;
+			const version = rawVersion(raw);
+			if (version > CURRENT_FINANCE_STATE_VERSION) throw new FutureFinanceStateError(version);
+			const backup = parseAndValidateBackup(json);
+			return migrateFinanceState({
+				version,
+				transactions: backup.transactions,
+				categories: backup.categories,
+				goals: backup.goals,
+				accounts: backup.accounts,
+				budgets: backup.budgets,
+				recurringTransactions: backup.recurringTransactions,
+				debts: backup.debts,
+				settings: backup.settings ?? fallbackSettings
+			});
+		} catch (error) {
+			if (error instanceof FutureFinanceStateError || error instanceof CorruptFinanceStateError) throw error;
+			throw new CorruptFinanceStateError(error);
+		}
+	}
+
 	async load(legacyState: FinanceState): Promise<RepositoryLoadResult> {
 		const snapshot = await loadFinanceSnapshot();
-		if (!snapshot) return { state: migrateFinanceState(legacyState), migrated: true };
-		const restored = parseAndValidateBackup(JSON.stringify(snapshot));
-		const state = migrateFinanceState({
-			version: restored.version ?? 4,
-			transactions: restored.transactions,
-			categories: restored.categories,
-			goals: restored.goals,
-			accounts: restored.accounts,
-			budgets: restored.budgets,
-			recurringTransactions: restored.recurringTransactions,
-			debts: restored.debts,
-			settings: restored.settings ?? legacyState.settings
-		});
-		return { state, migrated: state.version !== (restored.version ?? 4) };
+		if (snapshot === null) return { state: migrateFinanceState(legacyState), migrated: true, source: 'legacy' };
+		const state = this.deserialize(JSON.stringify(snapshot), legacyState.settings);
+		return { state, migrated: state.version !== rawVersion(snapshot), source: 'snapshot' };
+	}
+
+	serialize(state: FinanceState): string {
+		return JSON.stringify({ ...state, version: CURRENT_FINANCE_STATE_VERSION, exportedAt: new Date().toISOString() }, null, 2);
 	}
 
 	async save(state: FinanceState): Promise<void> {
-		await saveFinanceSnapshot({ ...state, version: CURRENT_FINANCE_STATE_VERSION, exportedAt: new Date().toISOString() });
+		await saveFinanceSnapshot(JSON.parse(this.serialize(state)) as FinanceStateSnapshot);
 	}
 }

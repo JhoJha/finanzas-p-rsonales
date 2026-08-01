@@ -13,12 +13,12 @@ import { SettingsStore } from './stores/settings.svelte';
 import { formatCurrency } from './utils/currency';
 import { dateFromDateOnly, formatDateOnly } from './utils/date';
 import { getExchangeRateToBase, getMissingExchangeRateCurrencies, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
-import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
+import { previewBackup, type BackupPreview } from './utils/backup';
 import { loadFromStorage, saveToStorage } from './stores/storage';
 import { calculateCashForecast, detectSubscriptions } from './utils/forecast';
 import { buildMonthlyReview, buildNetWorthHistory, invalidateNetWorthSnapshotsFrom } from './utils/insights';
 import { fetchExchangeRatesToBase, shouldRefreshExchangeRates } from './utils/exchange-rates';
-import { CURRENT_FINANCE_STATE_VERSION, FinanceRepository, type FinanceState } from './repositories/finance.repository';
+import { CURRENT_FINANCE_STATE_VERSION, CorruptFinanceStateError, FinanceRepository, FutureFinanceStateError, type FinanceState } from './repositories/finance.repository';
 import { TransactionService } from './services/transaction.service';
 import { DebtService } from './services/debt.service';
 import { GoalService } from './services/goal.service';
@@ -47,6 +47,7 @@ export class FinanceStoreFacade {
 	persistenceStatus = $state<PersistenceStatus>('saved');
 	lastSavedAt = $state<string | undefined>(undefined);
 	persistenceError = $state<string | undefined>(undefined);
+	recoveryRequired = $state(false);
 	private lastDeletedTransaction: Transaction | null = null;
 	private backupTimer: ReturnType<typeof setTimeout> | undefined;
 	private persistenceQueue: Promise<void> = Promise.resolve();
@@ -75,7 +76,13 @@ export class FinanceStoreFacade {
 			this.replaceState(result.state);
 			if (result.migrated) this.persistState();
 		} catch (error) {
-			console.error('Ignoring invalid consolidated finance state', error);
+			this.recoveryRequired = true;
+			this.persistenceStatus = 'error';
+			this.persistenceError = error instanceof CorruptFinanceStateError || error instanceof FutureFinanceStateError
+				? error.message
+				: 'No se pudo verificar el estado financiero guardado. Restaura un respaldo antes de continuar.';
+			this.isReady = true;
+			return;
 		}
 		
 		this.migrateInitialBalances();
@@ -177,7 +184,7 @@ export class FinanceStoreFacade {
 	}
 
 	private persistState() {
-		if (!browser) return;
+		if (!browser || this.recoveryRequired) return;
 		const snapshot = this.persistenceState();
 		this.persistenceStatus = 'saving';
 		this.persistenceError = undefined;
@@ -844,27 +851,22 @@ export class FinanceStoreFacade {
 	}
 
 	exportToJSON(): string {
-		return JSON.stringify({
-			version: 4,
-			transactions: this.transactions,
-			categories: this.categories,
-			goals: this.goals,
-			accounts: this.accountsStore.data,
-			budgets: this.budgets,
-			recurringTransactions: this.recurringTransactions,
-			debts: this.debts,
-			settings: this.settings,
-			exportedAt: new Date().toISOString()
-		}, null, 2);
+		return this.repository.serialize(this.persistenceState());
 	}
 
 	previewImport(json: string): BackupPreview {
-		return previewBackup(json);
+		try {
+			const state = this.repository.deserialize(json, this.settings);
+			const preview = previewBackup(json);
+			return { ...preview, valid: true, version: state.version };
+		} catch (error) {
+			return { valid: false, error: error instanceof Error ? error.message : 'Archivo inválido.' };
+		}
 	}
 
 	importFromJSON(json: string): boolean {
 		try {
-			const backup = parseAndValidateBackup(json);
+			const backup = this.repository.deserialize(json, this.settings);
 			const categories = backup.categories;
 			const accountIds = new Set(backup.accounts.map(account => account.id));
 			const categoryIds = new Set(categories.map(category => category.id));
@@ -912,6 +914,9 @@ export class FinanceStoreFacade {
 
 			this.migrateInitialBalances();
 			this.recalculateBalances();
+			this.recoveryRequired = false;
+			this.persistenceStatus = 'saved';
+			this.persistenceError = undefined;
 			this.scheduleAutomaticBackup();
 			return true;
 		} catch (e) {
