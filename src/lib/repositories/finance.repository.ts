@@ -22,6 +22,11 @@ export interface RepositoryLoadResult {
 	source: 'legacy' | 'snapshot';
 }
 
+export interface FinanceStorageGateway {
+	load(): Promise<FinanceStateSnapshot | null>;
+	save(snapshot: FinanceStateSnapshot): Promise<void>;
+}
+
 /** El estado fue creado por una versión más reciente y no puede escribirse con seguridad. */
 export class FutureFinanceStateError extends Error {
 	constructor(version: number) {
@@ -56,6 +61,8 @@ function rawVersion(snapshot: unknown): number {
 }
 
 export class FinanceRepository {
+	constructor(private readonly storage: FinanceStorageGateway = { load: loadFinanceSnapshot, save: saveFinanceSnapshot }) {}
+
 	/** Valida, normaliza y migra cualquier backup mediante el mismo pipeline del snapshot. */
 	deserialize(json: string, fallbackSettings: Settings): FinanceState {
 		try {
@@ -81,7 +88,7 @@ export class FinanceRepository {
 	}
 
 	async load(legacyState: FinanceState): Promise<RepositoryLoadResult> {
-		const snapshot = await loadFinanceSnapshot();
+		const snapshot = await this.storage.load();
 		if (snapshot === null) return { state: migrateFinanceState(legacyState), migrated: true, source: 'legacy' };
 		const state = this.deserialize(JSON.stringify(snapshot), legacyState.settings);
 		return { state, migrated: state.version !== rawVersion(snapshot), source: 'snapshot' };
@@ -92,6 +99,6 @@ export class FinanceRepository {
 	}
 
 	async save(state: FinanceState): Promise<void> {
-		await saveFinanceSnapshot(JSON.parse(this.serialize(state)) as FinanceStateSnapshot);
+		await this.storage.save(JSON.parse(this.serialize(state)) as FinanceStateSnapshot);
 	}
 }

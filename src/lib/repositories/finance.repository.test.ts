@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CorruptFinanceStateError, FinanceRepository, FutureFinanceStateError, migrateFinanceState } from '$lib/repositories/finance.repository';
 import { createFinanceState, createSettings } from '$lib/test/factories';
 
@@ -25,5 +25,14 @@ describe('FinanceRepository migrations', () => {
 	it('serializes every new backup with the current state version', () => {
 		const repository = new FinanceRepository();
 		expect(JSON.parse(repository.serialize(createFinanceState({ version: 4 })))).toMatchObject({ version: 6 });
+	});
+
+	it('propagates a consolidated-storage read failure instead of falling back to legacy', async () => {
+		const load = vi.fn().mockRejectedValue(new Error('IndexedDB unavailable'));
+		const save = vi.fn();
+		const repository = new FinanceRepository({ load, save });
+
+		await expect(repository.load(createFinanceState())).rejects.toThrow('IndexedDB unavailable');
+		expect(save).not.toHaveBeenCalled();
 	});
 });

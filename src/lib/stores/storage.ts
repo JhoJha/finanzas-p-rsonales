@@ -59,5 +59,19 @@ export async function saveFinanceSnapshot(snapshot: FinanceStateSnapshot): Promi
 }
 
 export async function loadFinanceSnapshot(): Promise<FinanceStateSnapshot | null> {
-	return loadFromStorage<FinanceStateSnapshot | null>(FINANCE_STATE_KEY, null);
+	if (!browser) return null;
+
+	// A diferencia de las claves heredadas, este snapshot es la fuente de verdad:
+	// un fallo de lectura nunca puede convertirse en una migración desde datos viejos.
+	const { get } = await import('idb-keyval');
+	const stored = await get<FinanceStateSnapshot>(FINANCE_STATE_KEY);
+	if (stored !== undefined) return stored;
+
+	// Solo migra la copia local del mismo snapshot cuando IndexedDB confirmó ausencia.
+	const legacySnapshot = localStorage.getItem(FINANCE_STATE_KEY);
+	if (!legacySnapshot) return null;
+	const parsed = JSON.parse(legacySnapshot) as FinanceStateSnapshot;
+	await saveFinanceSnapshot(parsed);
+	localStorage.removeItem(FINANCE_STATE_KEY);
+	return parsed;
 }
