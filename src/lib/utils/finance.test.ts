@@ -8,6 +8,7 @@ import {
 	projectDebtRepayment,
 	transactionAmountInBase
 } from '$lib/utils/finance';
+import { calculateCashForecast, detectSubscriptions } from '$lib/utils/forecast';
 
 const accounts: Account[] = [
 	{ id: 'cash', name: 'Efectivo', type: 'cash', initialBalance: 100, balance: 100, currency: 'PEN' },
@@ -67,5 +68,20 @@ describe('reglas financieras', () => {
 	it('interpreta las fechas de vencimiento como fechas locales de calendario', () => {
 		const dueDate = dateFromDateOnly('2026-02-15');
 		expect([dueDate.getFullYear(), dueDate.getMonth() + 1, dueDate.getDate()]).toEqual([2026, 2, 15]);
+	});
+
+	it('detecta pagos mensuales y proyecta el flujo de caja', () => {
+		const transactions: Transaction[] = ['2026-05-05', '2026-06-05', '2026-07-05'].map((date, index) => ({
+			id: `netflix-${index}`, date: `${date}T12:00:00.000Z`, timestamp: new Date(`${date}T12:00:00.000Z`).getTime(), amount: index === 2 ? 25 : 20,
+			categoryId: 'food', accountId: 'cash', type: 'expense', note: 'NETFLIX.COM'
+		}));
+		const settings = { baseCurrency: 'PEN', exchangeRates: {} };
+		const detected = detectSubscriptions(transactions, accounts, settings, new Date('2026-07-31T12:00:00'));
+		expect(detected).toHaveLength(1);
+		expect(detected[0].monthlyCost).toBe(25);
+		expect(detected[0].changePercent).toBe(25);
+		const forecast = calculateCashForecast(accounts, transactions, [{ id: 'salary', amount: 100, categoryId: 'income', accountId: 'cash', type: 'income', frequency: 'monthly', nextDate: '2026-07-31' }], [], [], [], settings, new Date('2026-07-31T12:00:00'));
+		expect(forecast.expectedIncome).toBe(100);
+		expect(forecast.forecastBalance).toBeGreaterThan(forecast.currentBalance);
 	});
 });

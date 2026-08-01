@@ -15,6 +15,7 @@ import { dateFromDateOnly, formatDateOnly } from './utils/date';
 import { getExchangeRateToBase, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
 import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
 import { loadFromStorage, saveToStorage, loadFinanceSnapshot, saveFinanceSnapshot } from './stores/storage';
+import { calculateCashForecast, detectSubscriptions } from './utils/forecast';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -389,7 +390,7 @@ class FinanceStoreFacade {
 	// === Budgets ===
 	addBudget(budget: Budget) { this.budgetsStore.addBudget(budget); this.scheduleAutomaticBackup(); }
 	deleteBudget(id: string) { this.budgetsStore.deleteBudget(id); this.scheduleAutomaticBackup(); }
-	
+
 	getBudgetProgress(identifier: string) {
 		const budget = this.budgets.find((item) => item.id === identifier)
 			?? this.budgets.find((item) => item.categoryId === identifier && item.period === 'monthly');
@@ -608,6 +609,14 @@ class FinanceStoreFacade {
 			currentCapacity,
 			isAffordable: currentCapacity >= requiredMonthly
 		};
+	}
+
+	getDetectedSubscriptions(now = new Date()) {
+		return detectSubscriptions(this.transactions, this.accounts, this.settings, now);
+	}
+
+	getCashForecast(now = new Date()) {
+		return calculateCashForecast(this.accounts, this.transactions, this.recurringTransactions, this.debts, this.budgets, this.categories, this.settings, now);
 	}
 
 	// === Derived Summaries & Health ===
