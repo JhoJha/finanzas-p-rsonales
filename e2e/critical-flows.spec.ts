@@ -86,13 +86,46 @@ test('vincula un pago recurrente a una deuda pendiente', async ({ page }) => {
 	await page.locator('#debt-installment').fill('100');
 	await page.getByRole('button', { name: 'Guardar' }).click();
 	await expect(page.getByText('Banco de prueba', { exact: true })).toBeVisible();
+	await page.waitForTimeout(700);
 
 	await page.goto('/recurrentes');
 	await page.locator('#a11y-6').fill('100');
+	await page.locator('#a11y-8').fill(new Date().toISOString().slice(0, 10));
 	await page.locator('#recurring-debt').selectOption({ index: 1 });
 	await page.locator('#a11y-12').fill('Cuota del banco');
 	await page.getByRole('button', { name: 'Guardar Recurrente' }).click();
 	await expect(page.getByText('Abono a Banco de prueba', { exact: false })).toBeVisible();
+	await page.getByRole('button', { name: 'Aprobar' }).click();
+	await page.waitForTimeout(700);
+
+	await page.goto('/deudas');
+	await expect(page.getByText('S/ 100.00 abonado', { exact: true })).toBeVisible();
+	await expect(page.getByText('S/ 400.00', { exact: true })).toBeVisible();
+});
+
+test('oculta la exportación de emergencia al bloquearse tras un error real de persistencia', async ({ page }) => {
+	await page.addInitScript(() => {
+		const originalSetTimeout = window.setTimeout.bind(window);
+		window.setTimeout = ((handler, delay, ...args) => originalSetTimeout(handler, delay === 5 * 60 * 1000 ? 0 : delay, ...args)) as typeof window.setTimeout;
+	});
+	await page.goto('/registro');
+	await page.evaluate(() => {
+		IDBObjectStore.prototype.put = function () {
+			throw new DOMException('Fallo de almacenamiento simulado.', 'QuotaExceededError');
+		};
+	});
+	await page.getByTestId('transaction-amount').fill('1');
+	await page.locator('#transaction-note').fill('Forzar fallo de guardado');
+	await page.getByTestId('transaction-save').click();
+	await expect(page.getByText('No se guardaron los últimos cambios.', { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Exportar respaldo ahora' })).toBeVisible();
+
+	await page.goto('/ajustes/seguridad');
+	await page.locator('#security-pin').fill('1234');
+	await page.locator('#security-confirm-pin').fill('1234');
+	await page.getByRole('button', { name: 'Activar bloqueo' }).click();
+	await expect(page.getByRole('heading', { name: 'Gestor bloqueado' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Exportar respaldo ahora' })).not.toBeVisible();
 });
 
 test('bloquea una nueva sesión y exige el PIN configurado', async ({ page }) => {

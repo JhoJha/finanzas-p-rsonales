@@ -156,6 +156,20 @@ export class FinanceStoreFacade {
 		};
 	}
 
+	/** Valida que un movimiento ligado a deuda pueda aplicar su efecto una sola vez. */
+	private canApplyLinkedTransaction(transaction: Transaction): boolean {
+		if (!transaction.debtId) return true;
+		const debt = this.debts.find((item) => item.id === transaction.debtId);
+		const linkedAmount = transaction.linkedAmount ?? transaction.amount;
+		const expectedType = debt?.type === 'i_owe' ? 'expense' : 'income';
+		const remaining = debt ? debt.totalAmount - debt.paidAmount : 0;
+		if (!debt || debt.status !== 'pending' || transaction.type !== expectedType || !Number.isFinite(linkedAmount) || linkedAmount <= 0 || linkedAmount > remaining + 0.000001) {
+			toastStore.add('El abono no es válido para el saldo pendiente de la deuda.', 'error');
+			return false;
+		}
+		return true;
+	}
+
 	private persistState() {
 		if (!browser) return;
 		const snapshot = {
@@ -258,12 +272,13 @@ export class FinanceStoreFacade {
 		const missingRate = [sourceAccount, destinationAccount].find((account) => account?.currency && account.currency.toUpperCase() !== this.settings.baseCurrency && !this.settings.exchangeRates[account.currency.toUpperCase()]);
 		if (missingRate) { toastStore.add(`Falta la tasa de cambio para ${missingRate.currency}.`, 'error'); return false; }
 		const parsed = TransactionSchema.safeParse(this.snapshotExchangeRate(transaction));
-		if (!parsed.success || !this.accounts.some((account) => account.id === parsed.data.accountId) || (parsed.data.type !== 'transfer' && !this.categories.some((category) => category.id === parsed.data.categoryId && category.type === parsed.data.type)) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some((account) => account.id === parsed.data.toAccountId)))) {
+		if (!parsed.success || !this.accounts.some((account) => account.id === parsed.data.accountId) || (parsed.data.type !== 'transfer' && !this.categories.some((category) => category.id === parsed.data.categoryId && category.type === parsed.data.type)) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some((account) => account.id === parsed.data.toAccountId))) || !this.canApplyLinkedTransaction(parsed.data)) {
 			toastStore.add('La transacción no es válida.', 'error');
 			return false;
 		}
 		this.transactionsStore.addTransaction(parsed.data);
 		this.applyTransactionEffect(parsed.data, 1);
+		this.applyLinkedTransactionEffect(parsed.data, 1);
 		this.invalidateNetWorthSnapshots(parsed.data.date);
 		this.scheduleAutomaticBackup();
 		return true;
@@ -313,6 +328,7 @@ export class FinanceStoreFacade {
 	restoreLastDeletedTransaction(): boolean {
 		if (!this.lastDeletedTransaction || this.transactions.some((transaction) => transaction.id === this.lastDeletedTransaction?.id)) return false;
 		const transaction = this.lastDeletedTransaction;
+		if (!this.canApplyLinkedTransaction(transaction)) return false;
 		this.transactionsStore.addTransaction(transaction);
 		this.applyTransactionEffect(transaction, 1);
 		this.applyLinkedTransactionEffect(transaction, 1);
@@ -656,11 +672,6 @@ export class FinanceStoreFacade {
 			return false;
 		}
 
-		this.debtsStore.updateDebt(debtId, (currentDebt) => {
-			currentDebt.paidAmount += amount;
-			if (currentDebt.paidAmount === currentDebt.totalAmount) currentDebt.status = 'paid';
-		});
-
 		const account = this.accounts.find((item) => item.id === accountId);
 		const accountAmount = amount / getExchangeRateToBase(account?.currency, this.settings);
 		const created = this.addTransaction({
@@ -674,13 +685,7 @@ export class FinanceStoreFacade {
 			debtId,
 			linkedAmount: amount
 		});
-		if (!created) {
-			this.debtsStore.updateDebt(debtId, (currentDebt) => {
-				currentDebt.paidAmount -= amount;
-				currentDebt.status = 'pending';
-			});
-			return false;
-		}
+		if (!created) return false;
 		this.scheduleAutomaticBackup();
 		return true;
 	}
