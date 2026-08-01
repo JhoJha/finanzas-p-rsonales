@@ -3,12 +3,15 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { Download, Upload, Settings, User } from '@lucide/svelte';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
+	import { themeStore, themes, type ThemeId } from '$lib/theme.svelte';
 	import { vibrate } from '$lib/utils/haptics';
 
 	import { exportTransactionsToCSV } from '$lib/utils/csv';
 
 	function exportData() {
-		const json = financeStore.exportToJSON();
+		const backup = JSON.parse(financeStore.exportToJSON()) as Record<string, unknown>;
+		backup.theme = themeStore.current;
+		const json = JSON.stringify(backup, null, 2);
 		const blob = new Blob([json], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -41,10 +44,15 @@
 			const file = e.target?.files?.[0];
 			if (!file) return;
 			const text = await file.text();
-			if (financeStore.importFromJSON(text)) {
+			try {
+				const backup = JSON.parse(text) as { theme?: unknown };
+				if (!financeStore.importFromJSON(text)) throw new Error('Invalid backup');
+				if (typeof backup.theme === 'string' && themes.some(theme => theme.id === backup.theme)) {
+					themeStore.setTheme(backup.theme as ThemeId);
+				}
 				vibrate([10, 30, 10]);
 				toastStore.add('📦 Datos importados correctamente');
-			} else {
+			} catch {
 				vibrate([50, 50, 50]);
 				toastStore.add('❌ Archivo inválido o corrupto', 'error');
 			}

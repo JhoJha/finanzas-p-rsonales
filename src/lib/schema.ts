@@ -4,26 +4,32 @@ import { z } from 'zod';
 export const INTERNAL_CATEGORY_DEBT_PAYMENT = '__debt-payment__';
 export const INTERNAL_CATEGORY_SAVINGS = '__savings__';
 
+const EntityId = z.string().trim().min(1);
+const PositiveAmount = z.number().finite().positive();
+
 export const CategorySchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	icon: z.string(),
-	color: z.string(),
+	id: EntityId,
+	name: z.string().trim().min(1),
+	icon: z.string().trim().min(1),
+	color: z.string().trim().min(1),
 	type: z.enum(['expense', 'income'])
 });
 
 export const AccountSchema = z.object({
-	id: z.string(),
-	name: z.string(),
+	id: EntityId,
+	name: z.string().trim().min(1),
 	type: z.enum(['cash', 'bank', 'credit']),
-	balance: z.number(),
+	// Saldo de apertura, independiente del saldo calculado por las transacciones.
+	// Es opcional para poder migrar los datos creados antes de este campo.
+	initialBalance: z.number().finite().optional(),
+	balance: z.number().finite(),
 	color: z.string().optional(),
 	currency: z.string().optional()
 });
 
 export const SettingsSchema = z.object({
-	baseCurrency: z.string(),
-	exchangeRates: z.record(z.string(), z.number()),
+	baseCurrency: z.string().trim().min(3).max(3),
+	exchangeRates: z.record(z.string(), z.number().finite().positive()),
 	profile: z.object({
 		name: z.string().default(''),
 		avatar: z.string().default('👋'),
@@ -32,39 +38,39 @@ export const SettingsSchema = z.object({
 });
 
 export const TransactionSchema = z.object({
-	id: z.string(),
-	date: z.string(),
-	timestamp: z.number().optional(),
-	amount: z.number(),
-	categoryId: z.string(),
-	accountId: z.string(),
-	toAccountId: z.string().optional(),
+	id: EntityId,
+	date: z.string().trim().min(1),
+	timestamp: z.number().finite().optional(),
+	amount: PositiveAmount,
+	categoryId: EntityId,
+	accountId: EntityId,
+	toAccountId: EntityId.optional(),
 	note: z.string().optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
 	tags: z.array(z.string()).optional()
 });
 
 export const GoalSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	targetAmount: z.number(),
-	currentAmount: z.number(),
+	id: EntityId,
+	name: z.string().trim().min(1),
+	targetAmount: PositiveAmount,
+	currentAmount: z.number().finite().nonnegative(),
 	deadline: z.string().optional()
 });
 
 export const BudgetSchema = z.object({
-	id: z.string(),
-	categoryId: z.string(),
-	amount: z.number(),
+	id: EntityId,
+	categoryId: EntityId,
+	amount: PositiveAmount,
 	period: z.enum(['monthly'])
 });
 
 export const RecurringTransactionSchema = z.object({
-	id: z.string(),
-	amount: z.number(),
-	categoryId: z.string(),
-	accountId: z.string(),
-	toAccountId: z.string().optional(),
+	id: EntityId,
+	amount: PositiveAmount,
+	categoryId: EntityId,
+	accountId: EntityId,
+	toAccountId: EntityId.optional(),
 	note: z.string().optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
 	frequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly']),
@@ -72,15 +78,31 @@ export const RecurringTransactionSchema = z.object({
 });
 
 export const DebtSchema = z.object({
-	id: z.string(),
+	id: EntityId,
 	type: z.enum(['i_owe', 'owed_to_me']),
-	contactName: z.string(),
-	totalAmount: z.number(),
-	paidAmount: z.number(),
+	contactName: z.string().trim().min(1),
+	totalAmount: PositiveAmount,
+	paidAmount: z.number().finite().nonnegative(),
 	dueDate: z.string().optional(), // ISO date
 	status: z.enum(['pending', 'paid']),
 	accountId: z.string().optional() // Default account for related transactions
+}).refine((debt) => debt.paidAmount <= debt.totalAmount, {
+	message: 'El monto abonado no puede superar el total de la deuda',
+	path: ['paidAmount']
 });
+
+export const BackupSchema = z.object({
+	version: z.number().int().positive().optional(),
+	transactions: z.array(TransactionSchema),
+	categories: z.array(CategorySchema),
+	goals: z.array(GoalSchema),
+	accounts: z.array(AccountSchema).min(1),
+	budgets: z.array(BudgetSchema),
+	recurringTransactions: z.array(RecurringTransactionSchema),
+	debts: z.array(DebtSchema),
+	settings: SettingsSchema.optional(),
+	exportedAt: z.string().optional()
+}).passthrough();
 
 export type Category = z.infer<typeof CategorySchema>;
 export type Transaction = z.infer<typeof TransactionSchema>;
@@ -90,6 +112,7 @@ export type Budget = z.infer<typeof BudgetSchema>;
 export type RecurringTransaction = z.infer<typeof RecurringTransactionSchema>;
 export type Debt = z.infer<typeof DebtSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
+export type FinanceBackup = z.infer<typeof BackupSchema>;
 
 export const defaultCategories: Category[] = [
 	{ id: '1', name: 'Alimentación', icon: 'pizza', color: 'bg-orange-500', type: 'expense' },

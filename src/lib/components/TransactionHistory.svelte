@@ -24,6 +24,10 @@
 		return cat?.name || 'Sin categoría';
 	}
 
+	function getTransactionCurrency(transaction: Transaction): string | undefined {
+		return financeStore.accounts.find(account => account.id === transaction.accountId)?.currency;
+	}
+
 	function confirmDelete(id: string) {
 		if (confirm('¿Eliminar esta transacción?')) {
 			financeStore.deleteTransaction(id);
@@ -48,12 +52,13 @@
 			const [year, month, day] = editDate.split('-').map(Number);
 			const newDate = new Date(year, month - 1, day, 12, 0, 0).toISOString();
 
-			financeStore.updateTransaction(editingId, {
+			const updated = financeStore.updateTransaction(editingId, {
 				amount: editAmount,
 				note: editNote,
 				categoryId: editCategoryId,
 				date: newDate
 			});
+			if (!updated) return;
 			vibrate(15);
 			toastStore.add('Cambios guardados', 'success');
 			editingId = null;
@@ -202,7 +207,7 @@
 							class="text-sm font-bold"
 							style="color: {t.type === 'income' ? 'var(--color-success)' : 'var(--color-danger)'};"
 						>
-							{t.type === 'income' ? '+' : '-'}{financeStore.formatCurrency(t.amount)}
+							{t.type === 'income' ? '+' : '-'}{financeStore.formatCurrency(t.amount, getTransactionCurrency(t))}
 						</span>
 						
 						<!-- Acciones -->

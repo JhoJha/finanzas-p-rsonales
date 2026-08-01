@@ -5,7 +5,11 @@
 	import { Save, User, Camera, ArrowLeft } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 
-	let profile = $state({ ...financeStore.settings.profile });
+	let profile = $state({
+		name: financeStore.settings.profile?.name ?? '',
+		avatar: financeStore.settings.profile?.avatar ?? '👋',
+		usePhoto: financeStore.settings.profile?.usePhoto ?? false
+	});
 	let fileInput: HTMLInputElement;
 
 	function saveProfile() {
@@ -36,6 +40,7 @@
 	<div class="flex items-center gap-3">
 		<button
 			onclick={() => history.back()}
+			aria-label="Volver"
 			class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-text transition-colors hover:bg-white/20"
 		>
 			<ArrowLeft size={20} />
@@ -55,6 +60,7 @@
 
 				<button
 					onclick={() => fileInput.click()}
+					aria-label="Subir foto de perfil"
 					class="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-md hover:scale-105 active:scale-95"
 				>
 					<Camera size={14} />
@@ -78,6 +84,7 @@
 					{#each ['👋','👨‍💻','👩‍💼','🦊','🤖','😎','🚀','🌟','💎'] as emoji}
 						<button
 							onclick={() => { profile.avatar = emoji; profile.usePhoto = false; vibrate(10); }}
+							aria-label={`Usar emoji ${emoji}`}
 							class="flex h-10 w-10 items-center justify-center rounded-full text-xl transition-all {profile.avatar === emoji ? 'bg-primary/20 scale-110' : 'bg-bg hover:bg-bg/80'}"
 						>
 							{emoji}
@@ -89,8 +96,9 @@
 
 		<div class="space-y-4">
 			<div>
-				<label class="mb-1 block text-sm font-medium" style="color: var(--color-text-secondary);">¿Cómo te llamas?</label>
+				<label for="profile-name" class="mb-1 block text-sm font-medium" style="color: var(--color-text-secondary);">¿Cómo te llamas?</label>
 				<input
+					id="profile-name"
 					type="text"
 					bind:value={profile.name}
 					placeholder="Ej. Juan, María..."

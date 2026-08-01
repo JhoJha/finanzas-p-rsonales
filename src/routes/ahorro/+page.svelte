@@ -2,6 +2,7 @@
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
 	import { GoalSchema, INTERNAL_CATEGORY_SAVINGS } from '$lib/schema';
+	import { dateFromDateOnly } from '$lib/utils/date';
 	import { Plus, Target, CheckCircle2, Trash2, PiggyBank, X, Calendar } from '@lucide/svelte';
 
 	let showingNewGoal = $state(false);
@@ -36,7 +37,7 @@
 			name: newGoalName,
 			targetAmount: parseFloat(newGoalAmount),
 			currentAmount: 0,
-			deadline: newGoalDeadline ? new Date(newGoalDeadline).toISOString() : undefined
+			deadline: newGoalDeadline || undefined
 		};
 
 		const parsed = GoalSchema.safeParse(goal);
@@ -211,7 +212,7 @@
 						</p>
 						<!-- Fecha límite e info de aporte diario -->
 						{#if goal.deadline && percent < 100}
-							{@const deadlineDate = new Date(goal.deadline)}
+							{@const deadlineDate = dateFromDateOnly(goal.deadline)}
 							{@const daysLeft = Math.max(0, Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000))}
 							{@const remaining = goal.targetAmount - goal.currentAmount}
 							{@const dailyNeeded = daysLeft > 0 ? remaining / daysLeft : null}

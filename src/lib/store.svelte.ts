@@ -1,4 +1,4 @@
-import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema, CategorySchema, GoalSchema, AccountSchema, BudgetSchema, RecurringTransactionSchema, DebtSchema } from './schema';
+import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema, BackupSchema, defaultCategories } from './schema';
 import { toastStore } from './toast.svelte';
 import { browser } from '$app/environment';
 
@@ -11,6 +11,7 @@ import { DebtsStore } from './stores/debts.svelte';
 import { RecurringStore } from './stores/recurring.svelte';
 import { SettingsStore } from './stores/settings.svelte';
 import { convertToBaseCurrency, formatCurrency } from './utils/currency';
+import { dateFromDateOnly, formatDateOnly } from './utils/date';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -44,6 +45,7 @@ class FinanceStoreFacade {
 			this.settingsStore.init()
 		]);
 		
+		this.migrateInitialBalances();
 		this.recalculateBalances();
 		// Recurring txs are no longer processed automatically, user must approve them
 		
@@ -52,12 +54,40 @@ class FinanceStoreFacade {
 
 	recalculateBalances() {
 		this.accountsStore.data.forEach(a => {
-			this.accountsStore.setBalance(a.id, 0);
+			this.accountsStore.setBalance(a.id, a.initialBalance ?? 0);
 		});
 		
 		this.transactionsStore.data.forEach(t => {
 			this.applyTransactionEffect(t, 1);
 		});
+	}
+
+	/**
+	 * Las versiones anteriores guardaban solamente el saldo calculado. Para no
+	 * alterar lo que el usuario ve al actualizar, inferimos el saldo de apertura
+	 * restando el efecto de las transacciones ya registradas.
+	 */
+	private migrateInitialBalances() {
+		let migrated = false;
+
+		this.accountsStore.data.forEach(account => {
+			if (account.initialBalance !== undefined) return;
+
+			const transactionNet = this.transactionsStore.data.reduce((net, transaction) => {
+				if (transaction.type === 'income' && transaction.accountId === account.id) return net + transaction.amount;
+				if (transaction.type === 'expense' && transaction.accountId === account.id) return net - transaction.amount;
+				if (transaction.type === 'transfer') {
+					if (transaction.accountId === account.id) return net - transaction.amount;
+					if (transaction.toAccountId === account.id) return net + transaction.amount;
+				}
+				return net;
+			}, 0);
+
+			account.initialBalance = account.balance - transactionNet;
+			migrated = true;
+		});
+
+		if (migrated) this.accountsStore.save();
 	}
 
 	private applyTransactionEffect(t: Transaction, multiplier: number) {
@@ -91,19 +121,29 @@ class FinanceStoreFacade {
 		if (t) this.applyTransactionEffect(t, -1);
 		this.transactionsStore.deleteTransaction(id);
 	}
-	updateTransaction(id: string, data: Partial<Transaction>) {
+	updateTransaction(id: string, data: Partial<Transaction>): boolean {
 		const t = this.transactions.find(tx => tx.id === id);
-		if (t) {
-			this.applyTransactionEffect(t, -1);
-			const updated = { ...t, ...data };
-			this.applyTransactionEffect(updated, 1);
-			this.transactionsStore.updateTransaction(id, data);
+		if (!t) return false;
+
+		const updated = { ...t, ...data };
+		const parsed = TransactionSchema.safeParse(updated);
+		if (!parsed.success || !this.accounts.some(account => account.id === parsed.data.accountId) || (parsed.data.type !== 'transfer' && !this.categories.some(category => category.id === parsed.data.categoryId)) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some(account => account.id === parsed.data.toAccountId)))) {
+			toastStore.add('Los cambios de la transacción no son válidos.', 'error');
+			return false;
 		}
+
+		this.applyTransactionEffect(t, -1);
+		this.applyTransactionEffect(parsed.data, 1);
+		this.transactionsStore.updateTransaction(id, parsed.data);
+		return true;
 	}
 
 	// === Accounts ===
 	addAccount(account: Account) {
-		this.accountsStore.addAccount(account);
+		this.accountsStore.addAccount({
+			...account,
+			initialBalance: account.initialBalance ?? account.balance
+		});
 	}
 	deleteAccount(id: string) {
 		const hasTx = this.transactions.some(t => t.accountId === id || t.toAccountId === id);
@@ -127,16 +167,40 @@ class FinanceStoreFacade {
 
 	// === Categories ===
 	addCategory(category: Category) {
+		if (category.id.startsWith('__')) {
+			toastStore.add('Los identificadores internos están reservados para el sistema.', 'error');
+			return false;
+		}
+		if (this.categories.some(existing => existing.id === category.id)) {
+			toastStore.add('Ya existe una categoría con ese identificador.', 'error');
+			return false;
+		}
 		this.categoriesStore.addCategory(category);
+		return true;
 	}
 
 	deleteCategory(id: string) {
+		if (id.startsWith('__')) {
+			toastStore.add('Las categorías internas no se pueden eliminar.', 'error');
+			return false;
+		}
 		const hasTx = this.transactions.some(t => t.categoryId === id);
 		if (hasTx) {
 			toastStore.add('No se puede eliminar la categoría porque tiene transacciones asociadas.', 'error');
 			return false;
 		}
+		const hasBudget = this.budgets.some(b => b.categoryId === id);
+		if (hasBudget) {
+			toastStore.add('No se puede eliminar la categoría porque tiene presupuestos asociados.', 'error');
+			return false;
+		}
+		const hasRecurring = this.recurringTransactions.some(rt => rt.type !== 'transfer' && rt.categoryId === id);
+		if (hasRecurring) {
+			toastStore.add('No se puede eliminar la categoría porque tiene transacciones recurrentes asociadas.', 'error');
+			return false;
+		}
 		this.categoriesStore.removeCategory(id);
+		return true;
 		return true;
 	}
 
@@ -179,7 +243,7 @@ class FinanceStoreFacade {
 		const now = new Date();
 		const pending: { rtId: string; tx: Transaction }[] = [];
 		this.recurringTransactions.forEach(rt => {
-			let nextDate = new Date(rt.nextDate);
+			let nextDate = dateFromDateOnly(rt.nextDate);
 			while (nextDate <= now) {
 				pending.push({
 					rtId: rt.id,
@@ -212,17 +276,17 @@ class FinanceStoreFacade {
 			this.addTransaction(tx);
 		}
 		
-		let nextDate = new Date(tx.date);
+		let nextDate = dateFromDateOnly(tx.date);
 		if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
 		else if (rt.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
 		else if (rt.frequency === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
 		else if (rt.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
 		
 		// Ensure we don't go backwards if multiple are pending
-		const currentNext = new Date(rt.nextDate);
+		const currentNext = dateFromDateOnly(rt.nextDate);
 		if (nextDate > currentNext) {
 			this.recurringStore.updateRecurringTransactions(
-				this.recurringTransactions.map(r => r.id === rtId ? { ...r, nextDate: nextDate.toISOString() } : r)
+				this.recurringTransactions.map(r => r.id === rtId ? { ...r, nextDate: formatDateOnly(nextDate) } : r)
 			);
 		}
 	}
@@ -231,25 +295,49 @@ class FinanceStoreFacade {
 	addDebt(debt: Debt) { this.debtsStore.addDebt(debt); }
 	deleteDebt(id: string) { this.debtsStore.deleteDebt(id); }
 	
-	payDebt(debtId: string, amount: number, accountId: string) {
-		this.debtsStore.updateDebt(debtId, (debt) => {
-			debt.paidAmount += amount;
-			if (debt.paidAmount >= debt.totalAmount) {
-				debt.paidAmount = debt.totalAmount;
-				debt.status = 'paid';
-			}
+	payDebt(debtId: string, amount: number, accountId: string): boolean {
+		const debt = this.debts.find(d => d.id === debtId);
+		if (!debt || debt.status !== 'pending') {
+			toastStore.add('La deuda ya no está disponible para recibir abonos.', 'error');
+			return false;
+		}
 
-			const isExpense = debt.type === 'i_owe';
-			this.addTransaction({
-				id: crypto.randomUUID(),
-				date: new Date().toISOString(),
-				amount: amount,
-				categoryId: INTERNAL_CATEGORY_DEBT_PAYMENT,
-				accountId: accountId,
-				note: `Abono a deuda: ${debt.contactName}`,
-				type: isExpense ? 'expense' : 'income'
-			});
+		if (!Number.isFinite(amount) || amount <= 0) {
+			toastStore.add('El monto del abono debe ser mayor que cero.', 'error');
+			return false;
+		}
+
+		if (!this.accounts.some(account => account.id === accountId)) {
+			toastStore.add('Selecciona una cuenta válida para el abono.', 'error');
+			return false;
+		}
+
+		const remaining = debt.totalAmount - debt.paidAmount;
+		if (remaining <= 0) {
+			toastStore.add('Esta deuda ya está pagada.', 'error');
+			return false;
+		}
+		if (amount > remaining) {
+			toastStore.add(`El abono supera el saldo pendiente de ${this.formatCurrency(remaining)}.`, 'error');
+			return false;
+		}
+
+		this.debtsStore.updateDebt(debtId, (currentDebt) => {
+			currentDebt.paidAmount += amount;
+			if (currentDebt.paidAmount === currentDebt.totalAmount) currentDebt.status = 'paid';
 		});
+
+		this.addTransaction({
+			id: crypto.randomUUID(),
+			date: new Date().toISOString(),
+			amount,
+			categoryId: INTERNAL_CATEGORY_DEBT_PAYMENT,
+			accountId,
+			note: `Abono a deuda: ${debt.contactName}`,
+			type: debt.type === 'i_owe' ? 'expense' : 'income'
+		});
+
+		return true;
 	}
 	
 	getOverdueDebts() {
@@ -258,7 +346,7 @@ class FinanceStoreFacade {
 		return this.debts.filter(d =>
 			d.status === 'pending' &&
 			d.dueDate &&
-			new Date(d.dueDate) < today
+			dateFromDateOnly(d.dueDate) < today
 		);
 	}
 
@@ -476,62 +564,76 @@ class FinanceStoreFacade {
 
 	exportToJSON(): string {
 		return JSON.stringify({
+			version: 2,
 			transactions: this.transactions,
 			categories: this.categories,
 			goals: this.goals,
-			accounts: this.accountsStore.data, // base without derived balance to prevent cyclic issues? Wait, we can export derived. But this is fine for now.
+			accounts: this.accountsStore.data,
 			budgets: this.budgets,
 			recurringTransactions: this.recurringTransactions,
 			debts: this.debts,
+			settings: this.settings,
 			exportedAt: new Date().toISOString()
 		}, null, 2);
 	}
 
 	importFromJSON(json: string): boolean {
 		try {
-			const data = JSON.parse(json);
-			
-			// Validate all first
-			let validAccounts = this.accountsStore.data.map(a => a.id);
-			let validCategories = this.categoriesStore.data.map(c => c.id);
-			
-			let newAccounts, newCategories, newTransactions, newGoals, newBudgets, newDebts, newRecurring;
-			
-			if (data.accounts) {
-				newAccounts = data.accounts.map((a: unknown) => AccountSchema.parse(a));
-				validAccounts = newAccounts.map((a: {id: string}) => a.id);
-			}
-			if (data.categories) {
-				newCategories = data.categories.filter((c: any) => CategorySchema.safeParse(c).success);
-				validCategories = newCategories.map((c: {id: string}) => c.id);
-			}
-			if (data.transactions) {
-				newTransactions = data.transactions.map((t: unknown) => TransactionSchema.parse(t))
-					.filter((t: any) => validAccounts.includes(t.accountId) && validCategories.includes(t.categoryId));
-			}
-			if (data.goals) {
-				newGoals = data.goals.map((g: unknown) => GoalSchema.parse(g));
-			}
-			if (data.budgets) {
-				newBudgets = data.budgets.map((b: unknown) => BudgetSchema.parse(b));
-			}
-			if (data.debts) {
-				newDebts = data.debts.map((d: unknown) => DebtSchema.parse(d));
-			}
-			if (data.recurringTransactions) {
-				newRecurring = data.recurringTransactions.map((r: unknown) => RecurringTransactionSchema.parse(r))
-					.filter((r: any) => validAccounts.includes(r.accountId) && validCategories.includes(r.categoryId));
-			}
-			
-			// Apply all if no throw
-			if (newAccounts) { this.accountsStore.data = newAccounts; this.accountsStore.save(); }
-			if (newCategories) { this.categoriesStore.data = newCategories; this.categoriesStore.save(); }
-			if (newTransactions) { this.transactionsStore.data = newTransactions; this.transactionsStore.save(); }
-			if (newGoals) { this.goalsStore.data = newGoals; this.goalsStore.save(); }
-			if (newBudgets) { this.budgetsStore.data = newBudgets; this.budgetsStore.save(); }
-			if (newDebts) { this.debtsStore.data = newDebts; this.debtsStore.save(); }
-			if (newRecurring) { this.recurringStore.data = newRecurring; this.recurringStore.save(); }
+			const backup = BackupSchema.parse(JSON.parse(json));
+			const internalCategories = defaultCategories.filter(category => category.id.startsWith('__'));
+			const categories = [
+				...backup.categories.filter(category => !category.id.startsWith('__')),
+				...internalCategories
+			];
+			const accountIds = new Set(backup.accounts.map(account => account.id));
+			const categoryIds = new Set(categories.map(category => category.id));
 
+			if (new Set(backup.accounts.map(account => account.id)).size !== backup.accounts.length) {
+				throw new Error('Las cuentas del backup tienen identificadores duplicados.');
+			}
+			if (new Set(categories.map(category => category.id)).size !== categories.length) {
+				throw new Error('Las categorías del backup tienen identificadores duplicados.');
+			}
+
+			for (const transaction of backup.transactions) {
+				if (!accountIds.has(transaction.accountId) || (transaction.type !== 'transfer' && !categoryIds.has(transaction.categoryId))) {
+					throw new Error('El backup contiene una transacción con una cuenta o categoría inexistente.');
+				}
+				if (transaction.type === 'transfer' && (!transaction.toAccountId || !accountIds.has(transaction.toAccountId) || transaction.toAccountId === transaction.accountId)) {
+					throw new Error('El backup contiene una transferencia inválida.');
+				}
+			}
+			for (const budget of backup.budgets) {
+				if (!categoryIds.has(budget.categoryId)) throw new Error('El backup contiene un presupuesto con categoría inexistente.');
+			}
+			for (const recurring of backup.recurringTransactions) {
+				if (!accountIds.has(recurring.accountId) || (recurring.type === 'transfer' && (!recurring.toAccountId || !accountIds.has(recurring.toAccountId) || recurring.toAccountId === recurring.accountId)) || (recurring.type !== 'transfer' && !categoryIds.has(recurring.categoryId))) {
+					throw new Error('El backup contiene una transacción recurrente inválida.');
+				}
+			}
+			for (const debt of backup.debts) {
+				if (debt.accountId && !accountIds.has(debt.accountId)) throw new Error('El backup contiene una deuda con cuenta inexistente.');
+			}
+
+			this.accountsStore.data = backup.accounts;
+			this.categoriesStore.data = categories;
+			this.transactionsStore.data = backup.transactions;
+			this.goalsStore.data = backup.goals;
+			this.budgetsStore.data = backup.budgets;
+			this.debtsStore.data = backup.debts;
+			this.recurringStore.data = backup.recurringTransactions;
+			if (backup.settings) this.settingsStore.data = backup.settings;
+
+			this.accountsStore.save();
+			this.categoriesStore.save();
+			this.transactionsStore.save();
+			this.goalsStore.save();
+			this.budgetsStore.save();
+			this.debtsStore.save();
+			this.recurringStore.save();
+			if (backup.settings) this.settingsStore.save();
+
+			this.migrateInitialBalances();
 			this.recalculateBalances();
 			return true;
 		} catch (e) {

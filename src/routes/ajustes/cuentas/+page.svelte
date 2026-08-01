@@ -21,6 +21,7 @@
 			id: crypto.randomUUID(),
 			name: newName.trim(),
 			type: newType,
+			initialBalance: newBalance,
 			balance: newBalance,
 			currency: newCurrency
 		});
@@ -38,7 +39,8 @@
 		}
 		if (confirm('¿Eliminar esta cuenta y todas sus transacciones asociadas?')) {
 			try {
-				financeStore.deleteAccount(id);
+				const deleted = financeStore.deleteAccount(id);
+				if (!deleted) return;
 				toastStore.add('Cuenta eliminada', 'success');
 			} catch (e: any) {
 				toastStore.add(e.message, 'error');
@@ -81,26 +83,26 @@
 			<h2 class="mb-4 font-semibold" style="color: var(--color-text);">Nueva Cuenta</h2>
 			<div class="space-y-3">
 				<div>
-					<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Nombre</label>
-					<input type="text" bind:value={newName} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+					<label for="account-name" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Nombre</label>
+					<input id="account-name" type="text" bind:value={newName} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
 				</div>
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Tipo</label>
-						<select bind:value={newType} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
+						<label for="account-type" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Tipo</label>
+						<select id="account-type" bind:value={newType} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
 							<option value="cash">Efectivo</option>
 							<option value="bank">Banco</option>
 							<option value="credit">Crédito</option>
 						</select>
 					</div>
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Moneda (Ej. USD, EUR)</label>
-						<input type="text" bind:value={newCurrency} class="w-full rounded-xl p-2 outline-none uppercase" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+						<label for="account-currency" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Moneda (Ej. USD, EUR)</label>
+						<input id="account-currency" type="text" bind:value={newCurrency} class="w-full rounded-xl p-2 outline-none uppercase" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 				</div>
 				<div>
-					<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Saldo Inicial</label>
-					<input type="number" bind:value={newBalance} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+					<label for="account-initial-balance" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Saldo Inicial</label>
+					<input id="account-initial-balance" type="number" bind:value={newBalance} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
 				</div>
 				<div class="mt-4 flex gap-2">
 					<button onclick={() => (showForm = false)} class="flex-1 rounded-xl py-2 font-semibold" style="background-color: var(--color-bg); color: var(--color-text);">Cancelar</button>

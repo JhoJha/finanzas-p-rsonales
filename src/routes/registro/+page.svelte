@@ -150,7 +150,7 @@
 			color: type === 'expense' ? 'bg-red-500' : 'bg-green-500',
 			type: type as 'expense' | 'income'
 		};
-		financeStore.categories.push(newCat);
+		if (!financeStore.addCategory(newCat)) return;
 		vibrate(10);
 		toastStore.add('Categoría creada', 'success');
 		categoryId = newCat.id;
@@ -317,6 +317,7 @@
 				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-4">Categoría</label>
 				<div class="mt-1 flex gap-2">
 					<select
+						id="transaction-category"
 						bind:value={categoryId}
 						class="flex-1 rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
@@ -386,8 +387,8 @@
 
 			<!-- Nota -->
 			<div>
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Nota / Detalle</label>
-				<input id="a11y-4"
+				<label for="transaction-note" class="block text-xs font-medium" style="color: var(--color-text-secondary);">Nota / Detalle</label>
+				<input id="transaction-note"
 					type="text"
 					bind:value={note}
 					placeholder="Ej. Almuerzo con amigos"

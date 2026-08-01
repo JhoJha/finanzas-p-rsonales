@@ -5,6 +5,7 @@
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 	import { TrendingUp, AlertTriangle, ArrowUp, ArrowDown, Minus } from '@lucide/svelte';
 	import { getColorHex } from '$lib/utils/colors';
+	import { convertToBaseCurrency } from '$lib/utils/currency';
 
 	let selectedPeriod = $state<Period>('all');
 	let searchQuery = $state('');
@@ -50,10 +51,13 @@
 		return result;
 	});
 
-	let summary = $derived({
-		income: filteredTransactions.filter((t) => t.type === 'income').reduce((a, b) => a + b.amount, 0),
-		expenses: filteredTransactions.filter((t) => t.type === 'expense').reduce((a, b) => a + b.amount, 0)
-	});
+	let summary = $derived(filteredTransactions.reduce((totals, transaction) => {
+		const account = financeStore.accounts.find(account => account.id === transaction.accountId);
+		const amountInBaseCurrency = convertToBaseCurrency(transaction.amount, account?.currency);
+		if (transaction.type === 'income') totals.income += amountInBaseCurrency;
+		if (transaction.type === 'expense') totals.expenses += amountInBaseCurrency;
+		return totals;
+	}, { income: 0, expenses: 0 }));
 
 	// Gastos por categoría
 	let expensesByCategory = $derived(financeStore.getExpensesByCategory(selectedPeriod));
@@ -277,20 +281,20 @@
 			{#if showFilters}
 				<div class="mb-4 animate-fade-in-up grid grid-cols-2 gap-3 rounded-xl p-3" style="background-color: var(--color-bg); border: 1px solid var(--color-border);">
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Monto Mínimo</label>
-						<input type="number" bind:value={minAmount} placeholder="0.00" class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+						<label for="analysis-min-amount" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Monto Mínimo</label>
+						<input id="analysis-min-amount" type="number" bind:value={minAmount} placeholder="0.00" class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Monto Máximo</label>
-						<input type="number" bind:value={maxAmount} placeholder="1000.00" class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+						<label for="analysis-max-amount" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Monto Máximo</label>
+						<input id="analysis-max-amount" type="number" bind:value={maxAmount} placeholder="1000.00" class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Desde</label>
-						<input type="date" bind:value={startDate} class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+						<label for="analysis-start-date" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Desde</label>
+						<input id="analysis-start-date" type="date" bind:value={startDate} class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Hasta</label>
-						<input type="date" bind:value={endDate} class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+						<label for="analysis-end-date" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Hasta</label>
+						<input id="analysis-end-date" type="date" bind:value={endDate} class="w-full rounded-lg p-2 text-xs outline-none" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 					<div class="col-span-2 text-right">
 						<button onclick={() => { minAmount = null; maxAmount = null; startDate = ''; endDate = ''; }} class="text-xs underline" style="color: var(--color-text-secondary);">Limpiar Filtros</button>

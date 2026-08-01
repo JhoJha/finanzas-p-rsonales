@@ -33,7 +33,7 @@
 			note,
 			type,
 			frequency,
-			nextDate: new Date(nextDate).toISOString()
+			nextDate
 		});
 
 		toastStore.add('Transacción recurrente creada', 'success');

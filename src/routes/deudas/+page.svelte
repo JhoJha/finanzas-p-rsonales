@@ -2,6 +2,7 @@
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
 	import { HandCoins, Plus, CheckCircle2, AlertCircle } from '@lucide/svelte';
+	import { dateFromDateOnly } from '$lib/utils/date';
 
 	let activeTab = $state<'i_owe' | 'owed_to_me'>('i_owe');
 	let showAddModal = $state(false);
@@ -33,7 +34,7 @@
 			contactName: contactName.trim(),
 			totalAmount: parseFloat(totalAmount),
 			paidAmount: 0,
-			dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+			dueDate: dueDate || undefined,
 			status: 'pending'
 		});
 
@@ -51,14 +52,16 @@
 			return;
 		}
 
-		financeStore.payDebt(showPayModal, parseFloat(payAmount), payAccountId);
+		const paid = financeStore.payDebt(showPayModal, parseFloat(payAmount), payAccountId);
+		if (!paid) return;
+
 		toastStore.add('Abono registrado', 'success');
 		showPayModal = null;
 		payAmount = '';
 	}
 
 	function formatDate(iso: string) {
-		return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+		return dateFromDateOnly(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
 	}
 </script>
 
@@ -117,7 +120,7 @@
 							<CheckCircle2 size={14} /> Pagado
 						</span>
 					{:else if debt.dueDate}
-						<span class="flex items-center gap-1 text-xs font-medium" style="color: {new Date(debt.dueDate) < new Date() ? 'var(--color-danger)' : 'var(--color-text-secondary)'};">
+						<span class="flex items-center gap-1 text-xs font-medium" style="color: {dateFromDateOnly(debt.dueDate) < new Date(new Date().setHours(0, 0, 0, 0)) ? 'var(--color-danger)' : 'var(--color-text-secondary)'};">
 							<AlertCircle size={14} /> Vence: {formatDate(debt.dueDate)}
 						</span>
 					{/if}

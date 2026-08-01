@@ -42,7 +42,8 @@
 			return;
 		}
 		if (confirm('¿Eliminar esta categoría?')) {
-			financeStore.deleteCategory(id);
+			const deleted = financeStore.deleteCategory(id);
+			if (!deleted) return;
 			toastStore.add('Categoría eliminada', 'success');
 		}
 	}
@@ -80,30 +81,30 @@
 			<h2 class="mb-4 font-semibold" style="color: var(--color-text);">Nueva Categoría</h2>
 			<div class="space-y-3">
 				<div>
-					<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Nombre</label>
-					<input type="text" bind:value={newName} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+					<label for="category-name" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Nombre</label>
+					<input id="category-name" type="text" bind:value={newName} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
 				</div>
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Tipo</label>
-						<select bind:value={newType} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
+						<label for="category-type" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Tipo</label>
+						<select id="category-type" bind:value={newType} class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
 							<option value="expense">Gasto</option>
 							<option value="income">Ingreso</option>
 						</select>
 					</div>
 					<div>
-						<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Icono (texto corto)</label>
-						<input type="text" bind:value={newIcon} placeholder="ej. tag, star" class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+						<label for="category-icon" class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Icono (texto corto)</label>
+						<input id="category-icon" type="text" bind:value={newIcon} placeholder="ej. tag, star" class="w-full rounded-xl p-2 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 				</div>
-				<div>
-					<label class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Color</label>
+				<fieldset>
+					<legend class="mb-1 block text-xs" style="color: var(--color-text-secondary);">Color</legend>
 					<div class="flex gap-2">
 						{#each colors as c}
-							<button onclick={() => newColor = c} class="h-6 w-6 rounded-full {c} {newColor === c ? 'ring-2 ring-offset-2' : ''}"></button>
+							<button type="button" onclick={() => newColor = c} aria-label={`Seleccionar color ${c.replace('bg-', '')}`} class="h-6 w-6 rounded-full {c} {newColor === c ? 'ring-2 ring-offset-2' : ''}"></button>
 						{/each}
 					</div>
-				</div>
+				</fieldset>
 				<div class="mt-4 flex gap-2">
 					<button onclick={() => (showForm = false)} class="flex-1 rounded-xl py-2 font-semibold" style="background-color: var(--color-bg); color: var(--color-text);">Cancelar</button>
 					<button onclick={saveCategory} class="flex-1 rounded-xl py-2 font-semibold text-white" style="background-color: var(--color-primary);">Guardar</button>
