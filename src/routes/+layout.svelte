@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { Home, PlusCircle, Target, TrendingUp, Sun, Moon, Settings, Download, Plus } from '@lucide/svelte';
+	import { Home, PlusCircle, Target, TrendingUp, Sun, Moon, Settings, Download, Plus, Search } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.svg';
 	import ToastProvider from '$lib/components/ToastProvider.svelte';
@@ -158,6 +158,7 @@
 		>
 			<Settings size={20} />
 		</a>
+		<a href="/buscar" aria-label="Búsqueda global" class="absolute left-14 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"><Search size={18} /></a>
 
 		<button
 			onclick={() => { vibrate(15); themeStore.toggleDark(); }}

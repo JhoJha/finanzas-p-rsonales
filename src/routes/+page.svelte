@@ -24,10 +24,11 @@
 
 	let showOnboarding = $state(false);
 	let onboardName = $state('');
+	let onboardingStep = $state<1 | 2>(1);
 
 	import { onMount } from 'svelte';
 	onMount(() => {
-		if (!financeStore.settings.profile?.name) {
+		if (!financeStore.settings.onboardingCompleted) {
 			showOnboarding = true;
 		}
 	});
@@ -41,6 +42,11 @@
 				usePhoto: false
 			}
 		});
+		onboardingStep = 2;
+	}
+
+	function finishOnboarding() {
+		financeStore.updateSettings({ onboardingCompleted: true });
 		showOnboarding = false;
 	}
 </script>
@@ -77,6 +83,14 @@
 			{financeStore.formatCurrency(summary.balance)}
 		</span>
 	</div>
+
+	{#if financeStore.transactions.length === 0}
+		<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+			<h2 class="font-semibold" style="color: var(--color-text);">Comienza en menos de un minuto</h2>
+			<p class="mt-1 text-sm" style="color: var(--color-text-secondary);">Registra un ingreso o gasto; luego crea un presupuesto para mantenerlo bajo control.</p>
+			<div class="mt-4 grid grid-cols-2 gap-3"><a href="/registro" class="rounded-xl py-2.5 text-center text-sm font-bold text-white" style="background-color: var(--color-primary);">Primer movimiento</a><a href="/presupuestos" class="rounded-xl py-2.5 text-center text-sm font-semibold" style="background-color: var(--color-bg); color: var(--color-text);">Crear presupuesto</a></div>
+		</div>
+	{/if}
 
 	<!-- Cuentas / Billeteras (Tarjetas Realistas) -->
 	<div class="flex gap-4 overflow-x-auto pb-4 pt-2 snap-x" style="scrollbar-width: none; -ms-overflow-style: none;">
@@ -257,6 +271,7 @@
 	<!-- Onboarding Modal -->
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in-up">
 		<div class="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style="background-color: var(--color-surface);">
+			{#if onboardingStep === 1}
 			<div class="mb-6 text-center">
 				<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl">👋</div>
 				<h2 class="text-2xl font-bold" style="color: var(--color-text);">¡Hola!</h2>
@@ -282,6 +297,17 @@
 			>
 				Continuar
 			</button>
+			{:else}
+				<div class="text-center">
+					<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl">🚀</div>
+					<h2 class="text-2xl font-bold" style="color: var(--color-text);">Todo listo, {onboardName.trim()}.</h2>
+					<p class="mt-2 text-sm" style="color: var(--color-text-secondary);">Registra un movimiento para empezar a ver tus presupuestos y análisis.</p>
+				</div>
+				<div class="mt-6 grid grid-cols-2 gap-3">
+					<a href="/registro" onclick={finishOnboarding} class="rounded-xl py-3 text-center text-sm font-bold text-white" style="background-color: var(--color-primary);">Registrar ahora</a>
+					<button onclick={finishOnboarding} class="rounded-xl py-3 text-sm font-semibold" style="background-color: var(--color-bg); color: var(--color-text);">Explorar</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}

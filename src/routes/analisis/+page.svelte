@@ -21,6 +21,7 @@
 	let maxAmount = $state<number | null>(null);
 	let startDate = $state<string>('');
 	let endDate = $state<string>('');
+	let savedFilters = $derived(financeStore.settings.savedFilters || []);
 
 	// Filtro avanzado
 	let displayedTransactions = $derived(() => {
@@ -86,6 +87,27 @@
 
 	function onPeriodChange(p: Period) {
 		selectedPeriod = p;
+	}
+
+	function saveCurrentFilter() {
+		const name = prompt('Nombre para este filtro');
+		if (!name?.trim()) return;
+		financeStore.updateSettings({
+			savedFilters: [{ id: crypto.randomUUID(), name: name.trim(), query: searchQuery, minAmount, maxAmount, startDate: startDate || undefined, endDate: endDate || undefined }, ...savedFilters].slice(0, 8)
+		});
+	}
+
+	function applySavedFilter(filter: typeof savedFilters[number]) {
+		searchQuery = filter.query;
+		minAmount = filter.minAmount;
+		maxAmount = filter.maxAmount;
+		startDate = filter.startDate || '';
+		endDate = filter.endDate || '';
+		showFilters = true;
+	}
+
+	function removeSavedFilter(id: string) {
+		financeStore.updateSettings({ savedFilters: savedFilters.filter((filter) => filter.id !== id) });
 	}
 </script>
 
@@ -246,6 +268,7 @@
 			<p class="mt-1 text-center text-sm" style="color: var(--color-text-secondary);">
 				Registra gastos e ingresos para ver tus análisis
 			</p>
+			<a href="/registro" class="mt-4 rounded-xl px-4 py-2 text-sm font-bold text-white" style="background-color: var(--color-primary);">Registrar primer movimiento</a>
 		</div>
 	{/if}
 
@@ -299,6 +322,15 @@
 					</div>
 				</div>
 			{/if}
+			<div class="mt-3 flex flex-wrap gap-2">
+				<button onclick={saveCurrentFilter} class="rounded-lg px-3 py-1.5 text-xs font-semibold" style="background-color: color-mix(in srgb, var(--color-primary) 10%, transparent); color: var(--color-primary);">Guardar filtro</button>
+				{#each savedFilters as filter}
+					<div class="flex items-center rounded-lg text-xs" style="background-color: var(--color-bg); border: 1px solid var(--color-border);">
+						<button onclick={() => applySavedFilter(filter)} class="px-2.5 py-1.5" style="color: var(--color-text);">{filter.name}</button>
+						<button onclick={() => removeSavedFilter(filter.id)} aria-label={`Eliminar filtro ${filter.name}`} class="px-2 py-1.5" style="color: var(--color-danger);">×</button>
+					</div>
+				{/each}
+			</div>
 			<TransactionHistory transactions={displayedTransactions()} />
 		</div>
 	{/if}

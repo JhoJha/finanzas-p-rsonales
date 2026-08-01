@@ -6,6 +6,8 @@ export class SettingsStore {
 	baseCurrency: 'PEN',
 	exchangeRates: { 'USD': 3.75, 'EUR': 4.05 },
 	budgetAlertThreshold: 80,
+	onboardingCompleted: false,
+	savedFilters: [],
 		profile: {
 			name: '',
 			avatar: '👋',

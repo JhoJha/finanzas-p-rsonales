@@ -35,6 +35,16 @@ export const SettingsSchema = z.object({
 		pinSalt: z.string().min(1),
 		pinHash: z.string().min(1)
 	}).optional(),
+	onboardingCompleted: z.boolean().default(false),
+	savedFilters: z.array(z.object({
+		id: EntityId,
+		name: z.string().trim().min(1).max(40),
+		query: z.string().max(100).default(''),
+		minAmount: z.number().finite().nonnegative().nullable().default(null),
+		maxAmount: z.number().finite().nonnegative().nullable().default(null),
+		startDate: z.string().optional(),
+		endDate: z.string().optional()
+	})).max(8).default([]),
 	profile: z.object({
 		name: z.string().default(''),
 		avatar: z.string().default('👋'),
