@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
-	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins, CreditCard, Wifi, Heart, Zap, DollarSign } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Wallet, PiggyBank, TrendingUp, Target, Repeat, Calendar as CalendarIcon, HandCoins, CreditCard, Wifi, Heart, Zap, DollarSign, Landmark, ClipboardCheck } from '@lucide/svelte';
 	import Chart from '$lib/components/Chart.svelte';
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 	import { getColorHex } from '$lib/utils/colors';
@@ -221,6 +221,14 @@
 		<a href="/pronostico" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 active:scale-95 bg-surface">
 			<div class="w-fit rounded-full p-2 bg-success/15 text-success"><Wallet size={20} /></div>
 			<span class="text-sm font-semibold text-text">Flujo de caja</span>
+		</a>
+		<a href="/cierre" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-primary/15 text-primary"><ClipboardCheck size={20} /></div>
+			<span class="text-sm font-semibold text-text">Cierre mensual</span>
+		</a>
+		<a href="/patrimonio" class="flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 active:scale-95 bg-surface">
+			<div class="w-fit rounded-full p-2 bg-warning/15 text-warning"><Landmark size={20} /></div>
+			<span class="text-sm font-semibold text-text">Patrimonio neto</span>
 		</a>
 	</div>
 

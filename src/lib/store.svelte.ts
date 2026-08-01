@@ -16,6 +16,7 @@ import { getExchangeRateToBase, projectDebtRepayment, transactionAmountInBase } 
 import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
 import { loadFromStorage, saveToStorage, loadFinanceSnapshot, saveFinanceSnapshot } from './stores/storage';
 import { calculateCashForecast, detectSubscriptions } from './utils/forecast';
+import { buildMonthlyReview, buildNetWorthHistory } from './utils/insights';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -617,6 +618,14 @@ class FinanceStoreFacade {
 
 	getCashForecast(now = new Date()) {
 		return calculateCashForecast(this.accounts, this.transactions, this.recurringTransactions, this.debts, this.budgets, this.categories, this.settings, now);
+	}
+
+	getMonthlyReview(now = new Date()) {
+		return buildMonthlyReview(this.transactions, this.accounts, this.categories, this.goals, this.settings, this.getDetectedSubscriptions(now).length, now);
+	}
+
+	getNetWorthHistory(months = 6, now = new Date()) {
+		return buildNetWorthHistory(this.accounts, this.transactions, this.goals, this.debts, this.settings, months, now);
 	}
 
 	// === Derived Summaries & Health ===

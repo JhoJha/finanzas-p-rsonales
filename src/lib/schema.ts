@@ -86,7 +86,8 @@ export const GoalSchema = z.object({
 	name: z.string().trim().min(1),
 	targetAmount: PositiveAmount,
 	currentAmount: z.number().finite().nonnegative(),
-	deadline: z.string().optional()
+	deadline: z.string().optional(),
+	createdAt: z.string().optional()
 });
 
 export const BudgetSchema = z.object({
@@ -120,7 +121,8 @@ export const DebtSchema = z.object({
 	status: z.enum(['pending', 'paid']),
 	accountId: z.string().optional(), // Default account for related transactions
 	interestRateAnnual: z.number().finite().min(0).max(100).optional(),
-	installmentAmount: PositiveAmount.optional()
+	installmentAmount: PositiveAmount.optional(),
+	createdAt: z.string().optional()
 }).refine((debt) => debt.paidAmount <= debt.totalAmount, {
 	message: 'El monto abonado no puede superar el total de la deuda',
 	path: ['paidAmount']

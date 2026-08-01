@@ -41,6 +41,7 @@
 			contactName: contactName.trim(),
 			totalAmount: parseFloat(totalAmount),
 			paidAmount: 0,
+			createdAt: new Date().toISOString(),
 			dueDate: dueDate || undefined,
 			status: 'pending'
 			,interestRateAnnual: interestRateAnnual ? parseFloat(interestRateAnnual) : undefined

@@ -9,6 +9,7 @@ import {
 	transactionAmountInBase
 } from '$lib/utils/finance';
 import { calculateCashForecast, detectSubscriptions } from '$lib/utils/forecast';
+import { buildMonthlyReview, buildNetWorthHistory } from '$lib/utils/insights';
 
 const accounts: Account[] = [
 	{ id: 'cash', name: 'Efectivo', type: 'cash', initialBalance: 100, balance: 100, currency: 'PEN' },
@@ -83,5 +84,20 @@ describe('reglas financieras', () => {
 		const forecast = calculateCashForecast(accounts, transactions, [{ id: 'salary', amount: 100, categoryId: 'income', accountId: 'cash', type: 'income', frequency: 'monthly', nextDate: '2026-07-31' }], [], [], [], settings, new Date('2026-07-31T12:00:00'));
 		expect(forecast.expectedIncome).toBe(100);
 		expect(forecast.forecastBalance).toBeGreaterThan(forecast.currentBalance);
+	});
+
+	it('resume el mes y reconstruye el patrimonio neto', () => {
+		const transactions: Transaction[] = [
+			{ id: 'income', date: '2026-06-10T12:00:00.000Z', timestamp: new Date('2026-06-10T12:00:00.000Z').getTime(), amount: 100, categoryId: 'income', accountId: 'cash', type: 'income' },
+			{ id: 'expense', date: '2026-06-12T12:00:00.000Z', timestamp: new Date('2026-06-12T12:00:00.000Z').getTime(), amount: 30, categoryId: 'food', accountId: 'cash', type: 'expense' },
+			{ id: 'saving', date: '2026-06-15T12:00:00.000Z', timestamp: new Date('2026-06-15T12:00:00.000Z').getTime(), amount: 20, linkedAmount: 20, categoryId: '__savings__', accountId: 'cash', type: 'expense', goalId: 'goal' }
+		];
+		const settings = { baseCurrency: 'PEN', exchangeRates: {} };
+		const review = buildMonthlyReview(transactions, accounts, [{ id: 'food', name: 'Comida', icon: 'tag', color: 'bg-blue-500', type: 'expense' }], [{ id: 'goal', name: 'Emergencia', targetAmount: 20, currentAmount: 20 }], settings, 1, new Date('2026-06-30T12:00:00'));
+		expect(review.net).toBe(50);
+		expect(review.completedGoals).toEqual(['Emergencia']);
+		const history = buildNetWorthHistory(accounts, transactions, [{ id: 'goal', name: 'Emergencia', targetAmount: 20, currentAmount: 20 }], [], settings, 1, new Date('2026-06-30T12:00:00'));
+		expect(history[0].savings).toBe(20);
+		expect(history[0].netWorth).toBe(180);
 	});
 });

@@ -37,6 +37,7 @@
 			name: newGoalName,
 			targetAmount: parseFloat(newGoalAmount),
 			currentAmount: 0,
+			createdAt: new Date().toISOString(),
 			deadline: newGoalDeadline || undefined
 		};
 
