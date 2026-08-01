@@ -1,42 +1,37 @@
-# sv
+# Gestor Inteligente
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Aplicación local y privada de finanzas personales construida con SvelteKit. Los datos se guardan en IndexedDB del navegador; no requiere conexión bancaria ni un backend.
 
-## Creating a project
+## Funciones
 
-If you're seeing this, you've probably already done this step. Congrats!
+- Cuentas y movimientos en distintas monedas, con una moneda base para reportes.
+- Presupuestos, metas, deudas y movimientos recurrentes revisables.
+- Importación CSV con vista previa, reglas de comercio y detección de duplicados.
+- Suscripciones detectadas, pronóstico de flujo de caja, cierre mensual y patrimonio neto.
+- Respaldo y restauración JSON, modo PWA y bloqueo con PIN local.
 
-```sh
-# create a new project
-npx sv create my-app
-```
+## Desarrollo
 
-To recreate this project with the same configuration:
+Requiere Node.js 22 o posterior.
 
-```sh
-# recreate this project
-npx sv@0.16.1 create --template minimal --types ts --add tailwindcss="plugins:none" --install npm .
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
+```bash
+npm ci
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+## Verificación
 
-To create a production version of your app:
-
-```sh
+```bash
+npm run check
+npm test
 npm run build
 ```
 
-You can preview the production build with `npm run preview`.
+## Consideraciones sobre datos
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+- Introduce cada movimiento en la moneda de su cuenta. La conversión ocurre solo en los reportes globales.
+- Configura una tasa de cambio antes de crear o usar una cuenta que no esté en la moneda base.
+- La moneda base se bloquea cuando ya existen datos para evitar reinterpretar el historial.
+- Para datos anteriores a la versión histórica, las cuentas, metas y deudas sin fecha de creación solo se muestran a partir del período actual; los nuevos registros incluyen esa fecha.
+
+La automatización de GitHub Actions ejecuta las mismas verificaciones en cada push y pull request.

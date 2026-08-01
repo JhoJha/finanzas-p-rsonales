@@ -17,7 +17,7 @@
 			return;
 		}
 		
-		financeStore.addAccount({
+		const created = financeStore.addAccount({
 			id: crypto.randomUUID(),
 			name: newName.trim(),
 			type: newType,
@@ -25,6 +25,7 @@
 			balance: newBalance,
 			currency: newCurrency
 		});
+		if (!created) return;
 		
 		toastStore.add('Cuenta creada', 'success');
 		showForm = false;

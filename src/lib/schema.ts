@@ -24,12 +24,16 @@ export const AccountSchema = z.object({
 	initialBalance: z.number().finite().optional(),
 	balance: z.number().finite(),
 	color: z.string().optional(),
-	currency: z.string().optional()
+	currency: z.string().optional(),
+	createdAt: z.string().optional()
 });
 
 export const SettingsSchema = z.object({
 	baseCurrency: z.string().trim().min(3).max(3),
 	exchangeRates: z.record(z.string(), z.number().finite().positive()),
+	// Fecha de la última consulta automática. Es opcional para conservar los
+	// respaldos anteriores y permitir una actualización al abrir la aplicación.
+	exchangeRatesUpdatedAt: z.string().datetime().optional(),
 	budgetAlertThreshold: z.number().int().min(50).max(100).default(80),
 	security: z.object({
 		pinSalt: z.string().min(1),

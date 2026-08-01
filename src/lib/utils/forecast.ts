@@ -44,7 +44,7 @@ export function detectSubscriptions(transactions: Transaction[], accounts: Accou
 	const accountMap = new Map(accounts.map((account) => [account.id, account]));
 	const grouped = new Map<string, Transaction[]>();
 	for (const transaction of transactions) {
-		if (transaction.type !== 'expense' || transaction.categoryId.startsWith('__')) continue;
+		if (transaction.type !== 'expense' || transaction.categoryId.startsWith('__') || !transaction.note?.trim()) continue;
 		const merchant = merchantName(transaction.note, transaction.categoryId);
 		const key = `${transaction.accountId}|${merchant}`;
 		grouped.set(key, [...(grouped.get(key) ?? []), transaction]);
@@ -52,7 +52,7 @@ export function detectSubscriptions(transactions: Transaction[], accounts: Accou
 
 	return [...grouped.values()].flatMap((items) => {
 		const sorted = [...items].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-		if (sorted.length < 2) return [];
+		if (sorted.length < 3) return [];
 		const gaps = sorted.slice(1).map((item, index) => (new Date(item.date).getTime() - new Date(sorted[index].date).getTime()) / 86400000);
 		const cadence = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
 		const isWeekly = cadence >= 6 && cadence <= 9;
@@ -61,6 +61,8 @@ export function detectSubscriptions(transactions: Transaction[], accounts: Accou
 		if (!isWeekly && !isBiweekly && !isMonthly) return [];
 		const amounts = sorted.map((item) => transactionAmountInBase(item, accountMap.get(item.accountId)?.currency, settings));
 		const latest = amounts.at(-1)!;
+		const average = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length;
+		if (average === 0 || Math.max(...amounts) - Math.min(...amounts) > average * 0.6) return [];
 		const historical = amounts.slice(0, -1);
 		const historicalAverage = historical.reduce((sum, amount) => sum + amount, 0) / historical.length;
 		let nextDate = addDays(new Date(sorted.at(-1)!.date), Math.round(cadence));
@@ -96,23 +98,26 @@ export function calculateCashForecast(
 	const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 	const currentBalance = accounts.reduce((sum, account) => sum + account.balance * getExchangeRateToBase(account.currency, settings), 0);
 	let expectedIncome = 0, scheduledExpenses = 0, debtPayments = 0;
+	const plannedByCategory = new Map<string, number>();
 	for (const item of recurring) {
 		const amount = item.amount * getExchangeRateToBase(accounts.find((account) => account.id === item.accountId)?.currency, settings);
 		const count = occurrencesUntil(item.nextDate, item.frequency, endDate, now).length;
 		if (item.type === 'income') expectedIncome += amount * count;
-		if (item.type === 'expense') scheduledExpenses += amount * count;
+		if (item.type === 'expense') { scheduledExpenses += amount * count; plannedByCategory.set(item.categoryId, (plannedByCategory.get(item.categoryId) ?? 0) + amount * count); }
 	}
 	const subscriptions = detectSubscriptions(transactions, accounts, settings, now);
 	const recurringMerchants = new Set(recurring.filter((item) => item.type === 'expense').map((item) => merchantName(item.note, item.categoryId)));
-	const subscriptionExpenses = subscriptions.filter((item) => item.nextDate <= endDate && !recurringMerchants.has(item.merchant)).reduce((sum, item) => sum + item.monthlyCost, 0);
+	const pendingSubscriptions = subscriptions.filter((item) => item.nextDate <= endDate && !recurringMerchants.has(item.merchant));
+	const subscriptionExpenses = pendingSubscriptions.reduce((sum, item) => sum + item.monthlyCost, 0);
+	for (const item of pendingSubscriptions) plannedByCategory.set(item.categoryId, (plannedByCategory.get(item.categoryId) ?? 0) + item.monthlyCost);
 	for (const debt of debts) {
-		if (debt.status !== 'pending' || (debt.dueDate && new Date(`${debt.dueDate}T23:59:59`) > endDate)) continue;
+		if (debt.status !== 'pending' || (!debt.installmentAmount && !debt.dueDate) || (debt.dueDate && new Date(`${debt.dueDate}T23:59:59`) > endDate)) continue;
 		const remaining = debt.totalAmount - debt.paidAmount;
 		debtPayments += Math.min(remaining, debt.installmentAmount ?? remaining);
 	}
 	const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 	const spentByCategory = new Map<string, number>();
 	for (const item of transactions) if (item.type === 'expense' && item.timestamp! >= monthStart) spentByCategory.set(item.categoryId, (spentByCategory.get(item.categoryId) ?? 0) + transactionAmountInBase(item, accounts.find((account) => account.id === item.accountId)?.currency, settings));
-	const budgetReserve = budgets.filter((budget) => budget.period === 'monthly').reduce((sum, budget) => sum + Math.max(0, budget.amount - (spentByCategory.get(budget.categoryId) ?? 0)), 0);
+	const budgetReserve = budgets.filter((budget) => budget.period === 'monthly').reduce((sum, budget) => sum + Math.max(0, budget.amount - (spentByCategory.get(budget.categoryId) ?? 0) - (plannedByCategory.get(budget.categoryId) ?? 0)), 0);
 	return { asOf: now, endDate, currentBalance, expectedIncome, scheduledExpenses, subscriptionExpenses, debtPayments, budgetReserve, forecastBalance: currentBalance + expectedIncome - scheduledExpenses - subscriptionExpenses - debtPayments - budgetReserve };
 }

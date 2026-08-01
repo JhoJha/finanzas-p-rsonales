@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
-	import { ArrowLeft, Save } from '@lucide/svelte';
+	import { ArrowLeft, RefreshCw, Save } from '@lucide/svelte';
 
 	let settings = $derived(financeStore.settings);
 	
@@ -14,6 +14,28 @@
 			.map(([curr, rate]) => `${curr}: ${rate}`)
 			.join('\n')
 	);
+	let isRefreshing = $state(false);
+	let lastUpdatedAt = $derived(financeStore.settings?.exchangeRatesUpdatedAt);
+
+	function syncRatesText() {
+		exchangeRatesText = Object.entries(financeStore.settings?.exchangeRates || {})
+			.map(([curr, rate]) => `${curr}: ${rate}`)
+			.join('\n');
+	}
+
+	async function refreshRates() {
+		isRefreshing = true;
+		const result = await financeStore.refreshExchangeRates(true);
+		isRefreshing = false;
+		if (result.status === 'updated') {
+			syncRatesText();
+			toastStore.add(`Tasas actualizadas: ${result.currencies.join(', ')}.`, 'success');
+		} else if (result.status === 'not-needed') {
+			toastStore.add('No hay cuentas en una moneda distinta de la base.', 'info');
+		} else if (result.status === 'failed') {
+			toastStore.add(`${result.error} Se conservaron las tasas anteriores.`, 'error');
+		}
+	}
 
 	function saveSettings() {
 		try {
@@ -32,10 +54,10 @@
 				newRates[curr] = rate;
 			}
 			
-			financeStore.updateSettings({
+			if (!financeStore.updateSettings({
 				baseCurrency: baseCurrency.toUpperCase(),
 				exchangeRates: newRates
-			});
+			})) return;
 			
 			toastStore.add('Configuración guardada', 'success');
 		} catch (e: any) {
@@ -61,6 +83,13 @@
 
 	<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 		<h2 class="mb-2 font-semibold" style="color: var(--color-text);">Tasas de Cambio</h2>
+		<p class="mb-4 text-xs" style="color: var(--color-text-secondary);">Las tasas de las monedas de tus cuentas se actualizan al abrir la app si ya pasaron 24 horas. Solo se envían códigos de moneda, nunca tus movimientos.</p>
+		<div class="mb-4 flex items-center justify-between gap-3 rounded-lg p-3 text-xs" style="background-color: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text-secondary);">
+			<span>{lastUpdatedAt ? `Última actualización: ${new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(lastUpdatedAt))}` : 'Aún no se han actualizado tasas automáticamente.'}</span>
+			<button onclick={refreshRates} disabled={isRefreshing} class="flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 font-semibold disabled:opacity-60" style="background-color: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary);">
+				<RefreshCw size={15} class={isRefreshing ? 'animate-spin' : ''} /> {isRefreshing ? 'Actualizando' : 'Actualizar ahora'}
+			</button>
+		</div>
 		<p class="mb-4 text-xs" style="color: var(--color-text-secondary);">Define cuánto vale 1 unidad de otra moneda en tu Moneda Base. Formato: <code>MONEDA: TASA</code> (una por línea).</p>
 		
 		<textarea bind:value={exchangeRatesText} rows="4" class="w-full rounded-xl p-3 outline-none font-mono text-sm" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" placeholder="USD: 3.75&#10;EUR: 4.10"></textarea>

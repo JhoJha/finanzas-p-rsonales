@@ -293,7 +293,7 @@
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				>
 					{#each financeStore.accounts as acc}
-						<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
+						<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance, acc.currency)})</option>
 					{/each}
 				</select>
 			</div>

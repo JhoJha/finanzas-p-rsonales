@@ -10,6 +10,8 @@ import {
 } from '$lib/utils/finance';
 import { calculateCashForecast, detectSubscriptions } from '$lib/utils/forecast';
 import { buildMonthlyReview, buildNetWorthHistory } from '$lib/utils/insights';
+import { parseBankDate, parseImportCsv } from '$lib/utils/import';
+import { ratesToBaseCurrency, shouldRefreshExchangeRates } from '$lib/utils/exchange-rates';
 
 const accounts: Account[] = [
 	{ id: 'cash', name: 'Efectivo', type: 'cash', initialBalance: 100, balance: 100, currency: 'PEN' },
@@ -99,5 +101,25 @@ describe('reglas financieras', () => {
 		const history = buildNetWorthHistory(accounts, transactions, [{ id: 'goal', name: 'Emergencia', targetAmount: 20, currentAmount: 20 }], [], settings, 1, new Date('2026-06-30T12:00:00'));
 		expect(history[0].savings).toBe(20);
 		expect(history[0].netWorth).toBe(180);
+	});
+
+	it('evita duplicar recurrentes dentro del presupuesto y no fuerza deudas sin cuota', () => {
+		const settings = { baseCurrency: 'PEN', exchangeRates: {} };
+		const forecast = calculateCashForecast(accounts, [], [{ id: 'rent', amount: 20, categoryId: 'food', accountId: 'cash', type: 'expense', frequency: 'monthly', nextDate: '2026-07-31' }], [{ id: 'debt', type: 'i_owe', contactName: 'Banco', totalAmount: 500, paidAmount: 0, status: 'pending' }], [{ id: 'food-budget', categoryId: 'food', amount: 100, period: 'monthly' }], [], settings, new Date('2026-07-31T12:00:00'));
+		expect(forecast.scheduledExpenses).toBe(20);
+		expect(forecast.budgetReserve).toBe(80);
+		expect(forecast.debtPayments).toBe(0);
+	});
+
+	it('importa Debe/Haber y rechaza fechas de calendario imposibles', () => {
+		const rows = parseImportCsv('Fecha;Descripción;Debe;Haber\n30/07/2026;Supermercado;25,50;\n31/07/2026;Sueldo;;1000', [{ id: 'food', name: 'Supermercado', icon: 'tag', color: 'bg-blue-500', type: 'expense' }, { id: 'income', name: 'Sueldo', icon: 'briefcase', color: 'bg-green-500', type: 'income' }], []);
+		expect(rows.map((row) => row.amount)).toEqual([-25.5, 1000]);
+		expect(parseBankDate('31/02/2026')).toBeNull();
+	});
+
+	it('convierte tasas del proveedor a la moneda base y respeta el intervalo diario', () => {
+		expect(ratesToBaseCurrency([{ base: 'PEN', quote: 'USD', rate: 0.25, date: '2026-07-31' }], 'PEN', ['USD'])).toEqual({ USD: 4 });
+		expect(shouldRefreshExchangeRates('2026-07-31T10:00:00.000Z', Date.parse('2026-08-01T09:59:59.999Z'))).toBe(false);
+		expect(shouldRefreshExchangeRates('2026-07-31T10:00:00.000Z', Date.parse('2026-08-01T10:00:00.000Z'))).toBe(true);
 	});
 });

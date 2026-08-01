@@ -116,7 +116,7 @@
 				
 				<div class="mt-4 relative z-10">
 					<div class="text-sm font-light opacity-80 mb-1">Saldo Disponible</div>
-					<div class="text-3xl font-extrabold tracking-tight">{financeStore.formatCurrency(account.balance)}</div>
+					<div class="text-3xl font-extrabold tracking-tight">{financeStore.formatCurrency(account.balance, account.currency)}</div>
 				</div>
 			</div>
 		{/each}

@@ -15,6 +15,7 @@
 	let editDate = $state<string>(''); // YYYY-MM-DD
 	let editAccountId = $state<string>('');
 	let editToAccountId = $state<string>('');
+	let editAccountCurrency = $derived(financeStore.accounts.find((account) => account.id === editAccountId)?.currency || financeStore.settings.baseCurrency);
 	let canUndoDelete = $state(false);
 	let undoTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -153,7 +154,7 @@
 
 					<div class="flex gap-2">
 						<div class="relative flex-1">
-							<span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400">S/</span>
+							<span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400">{editAccountCurrency}</span>
 							<input
 								type="number"
 								step="0.01"

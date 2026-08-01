@@ -5,6 +5,7 @@ export class SettingsStore {
 	data = $state<Settings>({
 	baseCurrency: 'PEN',
 	exchangeRates: { 'USD': 3.75, 'EUR': 4.05 },
+	exchangeRatesUpdatedAt: undefined,
 	budgetAlertThreshold: 80,
 	onboardingCompleted: false,
 	savedFilters: [],

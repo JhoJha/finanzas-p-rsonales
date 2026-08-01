@@ -12,6 +12,7 @@
 	let frequency = $state<'daily' | 'weekly' | 'monthly'>('monthly');
 	let note = $state('');
 	let nextDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+	let selectedAccount = $derived(financeStore.accounts.find((account) => account.id === accountId));
 
 	function addRecurring() {
 		if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
@@ -92,7 +93,7 @@
 		<!-- Monto y Frecuencia -->
 		<div class="flex gap-2">
 			<div class="flex-1">
-				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-6">Monto (Moneda Base)</label>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-6">Monto ({selectedAccount?.currency || financeStore.settings.baseCurrency})</label>
 				<input id="a11y-6"
 					type="number"
 					bind:value={amount}

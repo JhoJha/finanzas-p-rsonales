@@ -66,15 +66,19 @@ export function buildNetWorthHistory(accounts: Account[], transactions: Transact
 	return Array.from({ length: months }, (_, index) => {
 		const month = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + index, 1);
 		const cutoff = monthWindow(month).end;
-		const balances = new Map(accounts.map((account) => [account.id, account.initialBalance ?? 0]));
+		const activeAccounts = accounts.filter((account) => (account.createdAt ? new Date(account.createdAt) : new Date(date)) <= cutoff);
+		const balances = new Map(activeAccounts.map((account) => [account.id, account.initialBalance ?? 0]));
 		for (const transaction of transactions) {
 			if ((transaction.timestamp ?? new Date(transaction.date).getTime()) > cutoff.getTime()) continue;
 			if (transaction.type === 'income') balances.set(transaction.accountId, (balances.get(transaction.accountId) ?? 0) + transaction.amount);
 			if (transaction.type === 'expense') balances.set(transaction.accountId, (balances.get(transaction.accountId) ?? 0) - transaction.amount);
 			if (transaction.type === 'transfer' && transaction.toAccountId) { balances.set(transaction.accountId, (balances.get(transaction.accountId) ?? 0) - transaction.amount); balances.set(transaction.toAccountId, (balances.get(transaction.toAccountId) ?? 0) + (transaction.toAmount ?? transaction.amount)); }
 		}
-		const accountValue = accounts.reduce((sum, account) => sum + (balances.get(account.id) ?? 0) * getExchangeRateToBase(account.currency, settings), 0);
-		const savings = goals.reduce((sum, goal) => sum + Math.min(goal.targetAmount, transactions.filter((transaction) => transaction.goalId === goal.id && (transaction.timestamp ?? new Date(transaction.date).getTime()) <= cutoff.getTime()).reduce((total, transaction) => total + (transaction.linkedAmount ?? transactionBase(transaction, accounts, settings)), 0)), 0);
+		const accountValue = activeAccounts.reduce((sum, account) => sum + (balances.get(account.id) ?? 0) * getExchangeRateToBase(account.currency, settings), 0);
+		const savings = goals.reduce((sum, goal) => {
+			if ((goal.createdAt ? new Date(goal.createdAt) : new Date(date)) > cutoff) return sum;
+			return sum + Math.min(goal.targetAmount, transactions.filter((transaction) => transaction.goalId === goal.id && (transaction.timestamp ?? new Date(transaction.date).getTime()) <= cutoff.getTime()).reduce((total, transaction) => total + (transaction.linkedAmount ?? transactionBase(transaction, accounts, settings)), 0));
+		}, 0);
 		const position = debts.reduce((result, debt) => {
 			const createdAt = debt.createdAt ? new Date(debt.createdAt) : new Date(date);
 			if (createdAt > cutoff) return result;

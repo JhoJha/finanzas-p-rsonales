@@ -17,6 +17,7 @@ export default defineConfig({
 			registerType: 'autoUpdate',
 			injectRegister: 'script',
 			manifest: {
+				lang: 'es',
 				name: 'Gestor Inteligente',
 				short_name: 'Gestor',
 				description: 'Finanzas personales simplificadas',

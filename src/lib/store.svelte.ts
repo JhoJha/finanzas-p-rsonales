@@ -1,4 +1,4 @@
-import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, type ImportRow, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema } from './schema';
+import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, type ImportRow, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, AccountSchema, BudgetSchema, DebtSchema, GoalSchema, RecurringTransactionSchema, SettingsSchema, TransactionSchema } from './schema';
 import { toastStore } from './toast.svelte';
 import { browser } from '$app/environment';
 
@@ -17,8 +17,13 @@ import { parseAndValidateBackup, previewBackup, type BackupPreview } from './uti
 import { loadFromStorage, saveToStorage, loadFinanceSnapshot, saveFinanceSnapshot } from './stores/storage';
 import { calculateCashForecast, detectSubscriptions } from './utils/forecast';
 import { buildMonthlyReview, buildNetWorthHistory } from './utils/insights';
+import { fetchExchangeRatesToBase, shouldRefreshExchangeRates } from './utils/exchange-rates';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
+export type ExchangeRateRefreshResult =
+	| { status: 'updated'; currencies: string[] }
+	| { status: 'not-needed' | 'up-to-date' | 'unavailable' }
+	| { status: 'failed'; error: string };
 
 class FinanceStoreFacade {
 	private accountsStore = new AccountsStore();
@@ -34,6 +39,7 @@ class FinanceStoreFacade {
 	private lastDeletedTransaction: Transaction | null = null;
 	private backupTimer: ReturnType<typeof setTimeout> | undefined;
 	private persistenceQueue: Promise<void> = Promise.resolve();
+	private exchangeRateRefreshInFlight: Promise<ExchangeRateRefreshResult> | null = null;
 
 	constructor() {
 		if (browser) {
@@ -76,6 +82,8 @@ class FinanceStoreFacade {
 		// Recurring txs are no longer processed automatically, user must approve them
 		
 		this.isReady = true;
+		// No bloquea la carga: se conservan las tasas locales si el proveedor no está disponible.
+		void this.refreshExchangeRates();
 	}
 
 	recalculateBalances() {
@@ -182,10 +190,42 @@ class FinanceStoreFacade {
 	get accounts() { return this.accountsStore.data; }
 	get settings() { return this.settingsStore.data; }
 
+	/** Actualiza las tasas de las monedas realmente usadas por las cuentas. */
+	refreshExchangeRates(force = false): Promise<ExchangeRateRefreshResult> {
+		if (!browser) return Promise.resolve({ status: 'unavailable' });
+		if (this.exchangeRateRefreshInFlight) return this.exchangeRateRefreshInFlight;
+
+		const currencies = [...new Set(this.accounts
+			.map((account) => account.currency?.trim().toUpperCase())
+			.filter((currency): currency is string => Boolean(currency) && currency !== this.settings.baseCurrency.toUpperCase()))];
+		if (!currencies.length) return Promise.resolve({ status: 'not-needed' });
+		if (!force && !shouldRefreshExchangeRates(this.settings.exchangeRatesUpdatedAt)) return Promise.resolve({ status: 'up-to-date' });
+
+		this.exchangeRateRefreshInFlight = fetchExchangeRatesToBase(this.settings.baseCurrency, currencies)
+			.then((freshRates) => {
+				const updated = this.updateSettings({
+					exchangeRates: { ...this.settings.exchangeRates, ...freshRates },
+					exchangeRatesUpdatedAt: new Date().toISOString()
+				});
+				if (!updated) return { status: 'failed', error: 'No se pudieron guardar las tasas actualizadas.' } as ExchangeRateRefreshResult;
+				return { status: 'updated', currencies: Object.keys(freshRates) } as ExchangeRateRefreshResult;
+			})
+			.catch((error) => {
+				console.warn('Could not refresh exchange rates', error);
+				return { status: 'failed', error: error instanceof Error ? error.message : 'No se pudo actualizar el tipo de cambio.' } as ExchangeRateRefreshResult;
+			})
+			.finally(() => { this.exchangeRateRefreshInFlight = null; });
+		return this.exchangeRateRefreshInFlight;
+	}
+
 	// === Transactions ===
 	addTransaction(transaction: Transaction): boolean {
+		const sourceAccount = this.accounts.find((account) => account.id === transaction.accountId);
+		const destinationAccount = transaction.toAccountId ? this.accounts.find((account) => account.id === transaction.toAccountId) : undefined;
+		const missingRate = [sourceAccount, destinationAccount].find((account) => account?.currency && account.currency.toUpperCase() !== this.settings.baseCurrency && !this.settings.exchangeRates[account.currency.toUpperCase()]);
+		if (missingRate) { toastStore.add(`Falta la tasa de cambio para ${missingRate.currency}.`, 'error'); return false; }
 		const parsed = TransactionSchema.safeParse(this.snapshotExchangeRate(transaction));
-		if (!parsed.success || !this.accounts.some((account) => account.id === parsed.data.accountId) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some((account) => account.id === parsed.data.toAccountId)))) {
+		if (!parsed.success || !this.accounts.some((account) => account.id === parsed.data.accountId) || (parsed.data.type !== 'transfer' && !this.categories.some((category) => category.id === parsed.data.categoryId && category.type === parsed.data.type)) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some((account) => account.id === parsed.data.toAccountId)))) {
 			toastStore.add('La transacción no es válida.', 'error');
 			return false;
 		}
@@ -205,7 +245,9 @@ class FinanceStoreFacade {
 		const candidates: Transaction[] = [];
 		for (const row of rows.filter((item) => item.selected && !item.duplicate)) {
 			const type = row.amount < 0 ? 'expense' : 'income';
-			const categoryId = row.categoryId ?? this.categories.find((category) => category.type === type && !category.id.startsWith('__'))?.id;
+			const categoryId = row.categoryId && this.categories.some((category) => category.id === row.categoryId && category.type === type)
+				? row.categoryId
+				: this.categories.find((category) => category.type === type && !category.id.startsWith('__'))?.id;
 			if (!categoryId) continue;
 			const date = new Date(row.date);
 			if (Number.isNaN(date.getTime())) continue;
@@ -285,11 +327,18 @@ class FinanceStoreFacade {
 
 	// === Accounts ===
 	addAccount(account: Account) {
+		const parsed = AccountSchema.safeParse({ ...account, currency: account.currency?.trim().toUpperCase(), createdAt: account.createdAt ?? new Date().toISOString() });
+		if (!parsed.success) { toastStore.add('La cuenta no es válida.', 'error'); return false; }
+		if (parsed.data.currency && parsed.data.currency !== this.settings.baseCurrency && !this.settings.exchangeRates[parsed.data.currency]) {
+			toastStore.add(`Configura una tasa para ${parsed.data.currency} antes de crear la cuenta.`, 'error');
+			return false;
+		}
 		this.accountsStore.addAccount({
-			...account,
-			initialBalance: account.initialBalance ?? account.balance
+			...parsed.data,
+			initialBalance: parsed.data.initialBalance ?? parsed.data.balance
 		});
 		this.scheduleAutomaticBackup();
+		return true;
 	}
 	deleteAccount(id: string) {
 		const hasTx = this.transactions.some(t => t.accountId === id || t.toAccountId === id);
@@ -348,13 +397,18 @@ class FinanceStoreFacade {
 			return false;
 		}
 		this.categoriesStore.removeCategory(id);
+		this.settingsStore.updateSettings({ importRules: this.settings.importRules.filter((rule) => rule.categoryId !== id) });
 		this.scheduleAutomaticBackup();
 		return true;
 		return true;
 	}
 
 	// === Goals ===
-	addGoal(goal: Goal) { this.goalsStore.addGoal(goal); this.scheduleAutomaticBackup(); }
+	addGoal(goal: Goal) {
+		const parsed = GoalSchema.safeParse({ ...goal, createdAt: goal.createdAt ?? new Date().toISOString() });
+		if (!parsed.success) { toastStore.add('La meta no es válida.', 'error'); return false; }
+		this.goalsStore.addGoal(parsed.data); this.scheduleAutomaticBackup(); return true;
+	}
 	deleteGoal(id: string): boolean {
 		if (this.transactions.some((transaction) => transaction.goalId === id)) {
 			toastStore.add('No se puede eliminar una meta con aportes registrados.', 'error');
@@ -389,7 +443,11 @@ class FinanceStoreFacade {
 	}
 
 	// === Budgets ===
-	addBudget(budget: Budget) { this.budgetsStore.addBudget(budget); this.scheduleAutomaticBackup(); }
+	addBudget(budget: Budget) {
+		const parsed = BudgetSchema.safeParse(budget);
+		if (!parsed.success || !this.categories.some((category) => category.id === budget.categoryId && category.type === 'expense')) { toastStore.add('El presupuesto no es válido.', 'error'); return false; }
+		this.budgetsStore.addBudget(parsed.data); this.scheduleAutomaticBackup(); return true;
+	}
 	deleteBudget(id: string) { this.budgetsStore.deleteBudget(id); this.scheduleAutomaticBackup(); }
 
 	getBudgetProgress(identifier: string) {
@@ -444,15 +502,22 @@ class FinanceStoreFacade {
 	}
 
 	// === Recurring ===
-	addRecurringTransaction(rt: RecurringTransaction) { this.recurringStore.addRecurringTransaction(rt); this.scheduleAutomaticBackup(); }
+	addRecurringTransaction(rt: RecurringTransaction) {
+		const parsed = RecurringTransactionSchema.safeParse(rt);
+		const validAccounts = this.accounts.some((account) => account.id === rt.accountId) && (!rt.toAccountId || this.accounts.some((account) => account.id === rt.toAccountId));
+		const validCategory = rt.type === 'transfer' || this.categories.some((category) => category.id === rt.categoryId && category.type === rt.type);
+		if (!parsed.success || !validAccounts || !validCategory || (rt.type === 'transfer' && (!rt.toAccountId || rt.toAccountId === rt.accountId))) { toastStore.add('El movimiento recurrente no es válido.', 'error'); return false; }
+		this.recurringStore.addRecurringTransaction(parsed.data); this.scheduleAutomaticBackup(); return true;
+	}
 	deleteRecurringTransaction(id: string) { this.recurringStore.deleteRecurringTransaction(id); this.scheduleAutomaticBackup(); }
 	
 	getPendingRecurringTransactions() {
 		const now = new Date();
 		const pending: { rtId: string; tx: Transaction }[] = [];
+		const maxPending = 90;
 		this.recurringTransactions.forEach(rt => {
 			let nextDate = dateFromDateOnly(rt.nextDate);
-			while (nextDate <= now) {
+			while (nextDate <= now && pending.length < maxPending) {
 				pending.push({
 					rtId: rt.id,
 					tx: {
@@ -462,6 +527,7 @@ class FinanceStoreFacade {
 						categoryId: rt.categoryId,
 						accountId: rt.accountId,
 						toAccountId: rt.toAccountId,
+						toAmount: rt.toAmount,
 						note: rt.note,
 						type: rt.type
 					}
@@ -481,7 +547,7 @@ class FinanceStoreFacade {
 		if (!rt) return;
 		
 		if (accept) {
-			this.addTransaction(tx);
+			if (!this.addTransaction(tx)) return;
 		}
 		
 		let nextDate = dateFromDateOnly(tx.date);
@@ -497,10 +563,15 @@ class FinanceStoreFacade {
 				this.recurringTransactions.map(r => r.id === rtId ? { ...r, nextDate: formatDateOnly(nextDate) } : r)
 			);
 		}
+		this.scheduleAutomaticBackup();
 	}
 
 	// === Debts ===
-	addDebt(debt: Debt) { this.debtsStore.addDebt(debt); this.scheduleAutomaticBackup(); }
+	addDebt(debt: Debt) {
+		const parsed = DebtSchema.safeParse({ ...debt, createdAt: debt.createdAt ?? new Date().toISOString() });
+		if (!parsed.success || (parsed.data.accountId && !this.accounts.some((account) => account.id === parsed.data.accountId))) { toastStore.add('La deuda no es válida.', 'error'); return false; }
+		this.debtsStore.addDebt(parsed.data); this.scheduleAutomaticBackup(); return true;
+	}
 	deleteDebt(id: string): boolean {
 		if (this.transactions.some((transaction) => transaction.debtId === id)) {
 			toastStore.add('No se puede eliminar una deuda con abonos registrados.', 'error');
@@ -905,8 +976,18 @@ class FinanceStoreFacade {
 	}
 	// === Settings ===
 	updateSettings(newData: Partial<Settings>) {
-		this.settingsStore.updateSettings(newData);
+		const candidate = { ...this.settings, ...newData, baseCurrency: newData.baseCurrency?.trim().toUpperCase() ?? this.settings.baseCurrency };
+		if (candidate.baseCurrency !== this.settings.baseCurrency && (this.transactions.length > 0 || this.goals.length > 0 || this.debts.length > 0 || this.accounts.some((account) => (account.initialBalance ?? 0) !== 0 || Boolean(account.currency)))) {
+			toastStore.add('No puedes cambiar la moneda base mientras existan datos. Crea un backup y migra explícitamente tus importes.', 'error');
+			return false;
+		}
+		const parsed = SettingsSchema.safeParse(candidate);
+		if (!parsed.success) { toastStore.add('La configuración no es válida.', 'error'); return false; }
+		const missingRate = this.accounts.find((account) => account.currency && account.currency.toUpperCase() !== parsed.data.baseCurrency && !parsed.data.exchangeRates[account.currency.toUpperCase()]);
+		if (missingRate) { toastStore.add(`No puedes quitar la tasa de ${missingRate.currency} mientras exista esa cuenta.`, 'error'); return false; }
+		this.settingsStore.updateSettings(parsed.data);
 		this.scheduleAutomaticBackup();
+		return true;
 	}
 
 	formatCurrency(amount: number, currencyCode?: string): string {

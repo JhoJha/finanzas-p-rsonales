@@ -17,6 +17,8 @@
 	let txDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD, por defecto hoy
 	let isRecording = $state(false);
 	let dictationResult = $state('');
+	let selectedAccount = $derived(financeStore.accounts.find((account) => account.id === accountId));
+	let selectedDestinationAccount = $derived(financeStore.accounts.find((account) => account.id === toAccountId));
 
 	// Categoría personalizada
 	let showNewCategory = $state(false);
@@ -266,7 +268,7 @@
 			<!-- Monto -->
 			<div>
 				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-1">
-					Monto (Moneda Base) <span class="font-normal opacity-70">(soporta sumas ej. 15+20)</span>
+					Monto ({selectedAccount?.currency || financeStore.settings.baseCurrency}) <span class="font-normal opacity-70">(soporta sumas ej. 15+20)</span>
 				</label>
 				<input id="a11y-1"
 					type="text"
@@ -292,7 +294,7 @@
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 					>
 						{#each financeStore.accounts as acc}
-							<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
+							<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance, acc.currency)})</option>
 						{/each}
 					</select>
 				</div>
@@ -306,14 +308,14 @@
 							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 						>
 							{#each financeStore.accounts.filter(a => a.id !== accountId) as acc}
-								<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
+								<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance, acc.currency)})</option>
 							{/each}
 						</select>
 					</div>
 				{/if}
 				{#if type === 'transfer' && financeStore.accounts.find((account) => account.id === accountId)?.currency !== financeStore.accounts.find((account) => account.id === toAccountId)?.currency}
 					<div>
-						<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="transfer-destination-amount">Monto que recibe la cuenta destino (opcional)</label>
+						<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="transfer-destination-amount">Monto que recibe ({selectedDestinationAccount?.currency || financeStore.settings.baseCurrency}, opcional)</label>
 						<input id="transfer-destination-amount" type="number" min="0.01" step="0.01" bind:value={toAmount} placeholder="Se calcula con la tasa configurada" class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 				{/if}

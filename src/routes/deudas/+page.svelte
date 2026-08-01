@@ -246,7 +246,7 @@
 				</label>
 				<select id="a11y-19" bind:value={payAccountId} class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);">
 					{#each financeStore.accounts as acc}
-						<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
+						<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance, acc.currency)})</option>
 					{/each}
 				</select>
 			</div>
