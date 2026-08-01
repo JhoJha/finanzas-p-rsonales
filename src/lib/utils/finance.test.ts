@@ -5,6 +5,7 @@ import { dateFromDateOnly } from '$lib/utils/date';
 import {
 	applyTransactionToAccountBalances,
 	isValidDebtPayment,
+	projectDebtRepayment,
 	transactionAmountInBase
 } from '$lib/utils/finance';
 
@@ -37,6 +38,13 @@ describe('reglas financieras', () => {
 		expect(isValidDebtPayment(50, 50)).toBe(true);
 		expect(isValidDebtPayment(51, 50)).toBe(false);
 		expect(isValidDebtPayment(0, 50)).toBe(false);
+	});
+
+	it('proyecta una deuda con interés y detecta cuotas insuficientes', () => {
+		const projection = projectDebtRepayment(1200, 12, 110);
+		expect(projection.monthsRemaining).not.toBeNull();
+		expect(projection.estimatedInterest).toBeGreaterThan(0);
+		expect(projectDebtRepayment(1200, 12, 10).monthsRemaining).toBeNull();
 	});
 
 	it('valida referencias antes de restaurar un backup', () => {

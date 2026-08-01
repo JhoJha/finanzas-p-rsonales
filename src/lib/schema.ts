@@ -30,6 +30,11 @@ export const AccountSchema = z.object({
 export const SettingsSchema = z.object({
 	baseCurrency: z.string().trim().min(3).max(3),
 	exchangeRates: z.record(z.string(), z.number().finite().positive()),
+	budgetAlertThreshold: z.number().int().min(50).max(100).default(80),
+	security: z.object({
+		pinSalt: z.string().min(1),
+		pinHash: z.string().min(1)
+	}).optional(),
 	profile: z.object({
 		name: z.string().default(''),
 		avatar: z.string().default('👋'),
@@ -68,7 +73,8 @@ export const BudgetSchema = z.object({
 	id: EntityId,
 	categoryId: EntityId,
 	amount: PositiveAmount,
-	period: z.enum(['monthly'])
+	period: z.enum(['weekly', 'monthly']),
+	alertThreshold: z.number().int().min(50).max(100).optional()
 });
 
 export const RecurringTransactionSchema = z.object({
@@ -91,7 +97,9 @@ export const DebtSchema = z.object({
 	paidAmount: z.number().finite().nonnegative(),
 	dueDate: z.string().optional(), // ISO date
 	status: z.enum(['pending', 'paid']),
-	accountId: z.string().optional() // Default account for related transactions
+	accountId: z.string().optional(), // Default account for related transactions
+	interestRateAnnual: z.number().finite().min(0).max(100).optional(),
+	installmentAmount: PositiveAmount.optional()
 }).refine((debt) => debt.paidAmount <= debt.totalAmount, {
 	message: 'El monto abonado no puede superar el total de la deuda',
 	path: ['paidAmount']

@@ -144,6 +144,10 @@
 				</div>
 				<span style="color: var(--color-text-secondary);">➔</span>
 			</a>
+			<a href="/ajustes/seguridad" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
+				<div class="flex items-center gap-3"><span class="text-xl">🔒</span><span class="font-medium" style="color: var(--color-text);">Privacidad y bloqueo</span></div>
+				<span style="color: var(--color-text-secondary);">→</span>
+			</a>
 		</div>
 	</div>
 

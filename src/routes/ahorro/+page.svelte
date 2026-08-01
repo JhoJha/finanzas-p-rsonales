@@ -220,6 +220,14 @@
 									<span class="text-xs font-semibold" style="color: var(--color-primary);">{financeStore.formatCurrency(dailyNeeded)}/día</span>
 								{/if}
 							</div>
+							{@const suggestion = financeStore.getGoalSuggestion(goal.id)}
+							{#if suggestion}
+								<div class="mt-2 rounded-lg p-3 text-xs" style="background-color: color-mix(in srgb, var(--color-primary) 8%, transparent); border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);">
+									<p class="font-semibold" style="color: var(--color-text);">Plan sugerido</p>
+									<p class="mt-1" style="color: var(--color-text-secondary);">Aparta {financeStore.formatCurrency(suggestion.requiredWeekly)} por semana o {financeStore.formatCurrency(suggestion.requiredMonthly)} al mes.</p>
+									<p class="mt-1" style="color: {suggestion.isAffordable ? 'var(--color-success)' : '#d97706'};">{suggestion.isAffordable ? `Cabe en tu capacidad mensual actual (${financeStore.formatCurrency(suggestion.currentCapacity)}).` : `Tu capacidad mensual actual (${financeStore.formatCurrency(suggestion.currentCapacity)}) no alcanza todavía.`}</p>
+								</div>
+							{/if}
 						{/if}
 					</div>
 

@@ -11,6 +11,8 @@
 	let contactName = $state('');
 	let totalAmount = $state('');
 	let dueDate = $state('');
+	let interestRateAnnual = $state('');
+	let installmentAmount = $state('');
 
 	// Payment Form
 	let showPayModal = $state<string | null>(null);
@@ -28,6 +30,11 @@
 			return;
 		}
 
+		if ((interestRateAnnual && (!Number.isFinite(Number(interestRateAnnual)) || Number(interestRateAnnual) < 0)) || (installmentAmount && (!Number.isFinite(Number(installmentAmount)) || Number(installmentAmount) <= 0))) {
+			toastStore.add('Revisa la tasa y la cuota mensual.', 'error');
+			return;
+		}
+
 		financeStore.addDebt({
 			id: crypto.randomUUID(),
 			type: activeTab,
@@ -36,6 +43,8 @@
 			paidAmount: 0,
 			dueDate: dueDate || undefined,
 			status: 'pending'
+			,interestRateAnnual: interestRateAnnual ? parseFloat(interestRateAnnual) : undefined
+			,installmentAmount: installmentAmount ? parseFloat(installmentAmount) : undefined
 		});
 
 		toastStore.add('Deuda registrada', 'success');
@@ -43,6 +52,8 @@
 		contactName = '';
 		totalAmount = '';
 		dueDate = '';
+		interestRateAnnual = '';
+		installmentAmount = '';
 	}
 
 	function payDebt() {
@@ -109,6 +120,7 @@
 	<div class="space-y-4">
 		{#each filteredDebts as debt}
 			{@const percent = Math.min((debt.paidAmount / debt.totalAmount) * 100, 100)}
+			{@const projection = financeStore.getDebtProjection(debt.id)}
 			<div class="rounded-2xl p-5 shadow-sm relative overflow-hidden" style="background-color: var(--color-surface);">
 				<div class="mb-3 flex items-center justify-between">
 					<div class="flex items-center gap-2">
@@ -138,6 +150,20 @@
 						style="width: {percent}%; background-color: {percent === 100 ? 'var(--color-success)' : activeTab === 'i_owe' ? 'var(--color-danger)' : 'var(--color-success)'};"
 					></div>
 				</div>
+
+				{#if debt.status === 'pending' && projection}
+					<div class="mb-4 grid grid-cols-2 gap-2 text-xs">
+						<div class="rounded-lg p-2" style="background-color: var(--color-bg);">
+							<span style="color: var(--color-text-secondary);">Cuota mensual</span>
+							<p class="mt-0.5 font-bold" style="color: var(--color-text);">{financeStore.formatCurrency(projection.suggestedInstallment)}</p>
+						</div>
+						<div class="rounded-lg p-2" style="background-color: var(--color-bg);">
+							<span style="color: var(--color-text-secondary);">Proyección</span>
+							<p class="mt-0.5 font-bold" style="color: var(--color-text);">{projection.monthsRemaining === null ? 'Cuota insuficiente' : `${projection.monthsRemaining} mes(es)`}</p>
+						</div>
+					</div>
+					{#if projection.payoffDate}<p class="mb-4 text-xs" style="color: var(--color-text-secondary);">Con esta cuota terminarías aprox. en {projection.payoffDate.toLocaleDateString('es-PE', { month: 'short', year: 'numeric' })}{#if projection.estimatedInterest !== null} · intereses estimados: {financeStore.formatCurrency(projection.estimatedInterest)}{/if}</p>{/if}
+				{/if}
 
 				{#if debt.status === 'pending'}
 					<button
@@ -179,6 +205,17 @@
 			<div>
 				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="a11y-17">Fecha Límite (Opcional)</label>
 				<input id="a11y-17" type="date" bind:value={dueDate} class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
+			</div>
+
+			<div class="grid grid-cols-2 gap-3">
+				<div>
+					<label for="debt-interest-rate" class="block text-xs font-medium" style="color: var(--color-text-secondary);">Tasa anual %</label>
+					<input id="debt-interest-rate" type="number" min="0" max="100" step="0.01" bind:value={interestRateAnnual} placeholder="0" class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
+				</div>
+				<div>
+					<label for="debt-installment" class="block text-xs font-medium" style="color: var(--color-text-secondary);">Cuota mensual</label>
+					<input id="debt-installment" type="number" min="0" step="0.01" bind:value={installmentAmount} placeholder="Sugerida" class="mt-1 w-full rounded-xl p-3 text-sm outline-none border" style="background-color: var(--color-bg); color: var(--color-text); border-color: var(--color-border);" />
+				</div>
 			</div>
 
 			<div class="mt-6 flex gap-3">

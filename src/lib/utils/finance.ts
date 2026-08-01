@@ -53,3 +53,41 @@ export function applyTransactionToAccountBalances(
 export function isValidDebtPayment(amount: number, remaining: number): boolean {
 	return Number.isFinite(amount) && amount > 0 && amount <= remaining;
 }
+
+export interface DebtProjection {
+	remaining: number;
+	monthlyRate: number;
+	suggestedInstallment: number;
+	monthsRemaining: number | null;
+	estimatedInterest: number | null;
+}
+
+/** Proyección simple con cuota fija; no modifica el saldo registrado de la deuda. */
+export function projectDebtRepayment(
+	remaining: number,
+	interestRateAnnual = 0,
+	installmentAmount?: number
+): DebtProjection {
+	const monthlyRate = interestRateAnnual / 100 / 12;
+	const minimumPayment = monthlyRate > 0 ? remaining * monthlyRate + remaining / 12 : remaining / 12;
+	const suggestedInstallment = installmentAmount ?? Math.ceil(minimumPayment * 100) / 100;
+	if (remaining <= 0) return { remaining: 0, monthlyRate, suggestedInstallment: 0, monthsRemaining: 0, estimatedInterest: 0 };
+	if (suggestedInstallment <= remaining * monthlyRate) return { remaining, monthlyRate, suggestedInstallment, monthsRemaining: null, estimatedInterest: null };
+
+	let balance = remaining;
+	let interest = 0;
+	let months = 0;
+	while (balance > 0.01 && months < 600) {
+		const monthInterest = balance * monthlyRate;
+		interest += monthInterest;
+		balance = balance + monthInterest - suggestedInstallment;
+		months += 1;
+	}
+	return balance > 0 ? { remaining, monthlyRate, suggestedInstallment, monthsRemaining: null, estimatedInterest: null } : {
+		remaining,
+		monthlyRate,
+		suggestedInstallment,
+		monthsRemaining: months,
+		estimatedInterest: Math.round(interest * 100) / 100
+	};
+}

@@ -8,6 +8,7 @@
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
 	import { vibrate } from '$lib/utils/haptics';
+	import { verifyPin } from '$lib/utils/security';
 
 	let { children } = $props();
 
@@ -16,6 +17,9 @@
 
 	let deferredPrompt = $state<any>(null);
 	let showInstallBanner = $state(false);
+	let isLocked = $state(false);
+	let lockPin = $state('');
+	let lockError = $state('');
 
 	$effect(() => {
 		const handleBeforeInstallPrompt = (e: any) => {
@@ -34,6 +38,23 @@
 			window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 		};
 	});
+
+	$effect(() => {
+		if (!financeStore.isReady) return;
+		isLocked = Boolean(financeStore.settings.security) && sessionStorage.getItem('finances_unlocked') !== '1';
+	});
+
+	async function unlock() {
+		const security = financeStore.settings.security;
+		if (!security || !(await verifyPin(lockPin, security))) {
+			lockError = 'PIN incorrecto.';
+			return;
+		}
+		sessionStorage.setItem('finances_unlocked', '1');
+		lockPin = '';
+		lockError = '';
+		isLocked = false;
+	}
 
 	// Alerta proactiva de deudas vencidas (una vez por sesión)
 	$effect(() => {
@@ -72,6 +93,22 @@
 		}
 	});
 
+	$effect(() => {
+		if (!financeStore.isReady) return;
+		const alertKey = `budget_alerts_${new Date().toISOString().slice(0, 10)}`;
+		if (sessionStorage.getItem(alertKey)) return;
+		const alerts = financeStore.getBudgetAlerts();
+		if (alerts.length === 0) return;
+		sessionStorage.setItem(alertKey, '1');
+		setTimeout(() => {
+			toastStore.add(
+				`Tienes ${alerts.length} presupuesto${alerts.length > 1 ? 's' : ''} cerca o por encima de su límite.`,
+				'warning',
+				7000
+			);
+		}, 2000);
+	});
+
 	async function installPWA() {
 		if (deferredPrompt) {
 			deferredPrompt.prompt();
@@ -92,6 +129,19 @@
 
 <div class="flex h-screen flex-col bg-bg text-text">
 	<ToastProvider />
+	{#if isLocked}
+		<main class="flex flex-1 items-center justify-center p-6">
+			<div class="w-full max-w-sm rounded-3xl p-6 text-center shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+				<div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style="background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);">🔒</div>
+				<h1 class="text-xl font-bold" style="color: var(--color-text);">Gestor bloqueado</h1>
+				<p class="mt-2 text-sm" style="color: var(--color-text-secondary);">Ingresa tu PIN para acceder a tus finanzas.</p>
+				<label for="app-unlock-pin" class="sr-only">PIN</label>
+				<input id="app-unlock-pin" type="password" inputmode="numeric" maxlength="8" bind:value={lockPin} onkeydown={(event) => { if (event.key === 'Enter') unlock(); }} class="mt-5 w-full rounded-xl p-3 text-center text-lg tracking-[0.5em] outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+				{#if lockError}<p class="mt-2 text-xs" style="color: var(--color-danger);">{lockError}</p>{/if}
+				<button onclick={unlock} class="mt-4 w-full rounded-xl py-3 font-bold text-white" style="background-color: var(--color-primary);">Desbloquear</button>
+			</div>
+		</main>
+	{:else}
 	<!-- Header con gradiente -->
 	<header
 		class="relative p-4 pb-16 text-center shadow-lg"
@@ -203,5 +253,5 @@
 			<span>Análisis</span>
 		</a>
 	</nav>
+	{/if}
 </div>
-

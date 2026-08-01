@@ -12,7 +12,7 @@ import { RecurringStore } from './stores/recurring.svelte';
 import { SettingsStore } from './stores/settings.svelte';
 import { formatCurrency } from './utils/currency';
 import { dateFromDateOnly, formatDateOnly } from './utils/date';
-import { getExchangeRateToBase, transactionAmountInBase } from './utils/finance';
+import { getExchangeRateToBase, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
 import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
 import { loadFromStorage, saveToStorage } from './stores/storage';
 
@@ -320,25 +320,55 @@ class FinanceStoreFacade {
 	addBudget(budget: Budget) { this.budgetsStore.addBudget(budget); this.scheduleAutomaticBackup(); }
 	deleteBudget(id: string) { this.budgetsStore.deleteBudget(id); this.scheduleAutomaticBackup(); }
 	
-	getBudgetProgress(categoryId: string) {
-		const budget = this.budgets.find(b => b.categoryId === categoryId);
+	getBudgetProgress(identifier: string) {
+		const budget = this.budgets.find((item) => item.id === identifier)
+			?? this.budgets.find((item) => item.categoryId === identifier && item.period === 'monthly');
 		if (!budget) return null;
 
 		const now = new Date();
-		const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-		const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+		const startDate = budget.period === 'weekly'
+			? new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7))
+			: new Date(now.getFullYear(), now.getMonth(), 1);
+		const endDate = budget.period === 'weekly'
+			? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 6, 23, 59, 59, 999)
+			: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+		const previousStart = budget.period === 'weekly'
+			? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() - 7)
+			: new Date(now.getFullYear(), now.getMonth() - 1, 1);
+		const previousEnd = new Date(startDate.getTime() - 1);
+		const start = startDate.getTime();
+		const end = endDate.getTime();
 
 		const spent = this.transactions
-			.filter(t => t.type === 'expense' && t.categoryId === categoryId && t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth)
+			.filter(t => t.type === 'expense' && t.categoryId === budget.categoryId && t.timestamp! >= start && t.timestamp! <= end)
 			.reduce((acc, t) => {
 				return acc + this.getTransactionAmountInBase(t);
 			}, 0);
+		const previousSpent = this.transactions
+			.filter(t => t.type === 'expense' && t.categoryId === budget.categoryId && t.timestamp! >= previousStart.getTime() && t.timestamp! <= previousEnd.getTime())
+			.reduce((acc, t) => acc + this.getTransactionAmountInBase(t), 0);
+		const daysLeft = Math.max(0, Math.ceil((end - now.getTime()) / 86400000));
+		const available = budget.amount - spent;
 
 		return {
+			id: budget.id,
+			period: budget.period,
 			budget: budget.amount,
 			spent,
-			percent: Math.round((spent / budget.amount) * 100)
+			previousSpent,
+			available,
+			daysLeft,
+			dailyAvailable: daysLeft > 0 ? Math.max(0, available) / daysLeft : Math.max(0, available),
+			percent: Math.round((spent / budget.amount) * 100),
+			alertThreshold: budget.alertThreshold ?? this.settings.budgetAlertThreshold
 		};
+	}
+
+	getBudgetAlerts() {
+		return this.budgets.flatMap((budget) => {
+			const progress = this.getBudgetProgress(budget.id);
+			return progress && progress.percent >= progress.alertThreshold ? [{ budget, progress }] : [];
+		});
 	}
 
 	// === Recurring ===
@@ -461,6 +491,22 @@ class FinanceStoreFacade {
 		this.scheduleAutomaticBackup();
 		return true;
 	}
+
+	getDebtProjection(debtId: string) {
+		const debt = this.debts.find((item) => item.id === debtId);
+		if (!debt) return null;
+		const projection = projectDebtRepayment(
+			Math.max(0, debt.totalAmount - debt.paidAmount),
+			debt.interestRateAnnual ?? 0,
+			debt.installmentAmount
+		);
+		const payoffDate = projection.monthsRemaining === null ? null : (() => {
+			const date = new Date();
+			date.setMonth(date.getMonth() + projection.monthsRemaining);
+			return date;
+		})();
+		return { ...projection, payoffDate };
+	}
 	
 	getOverdueDebts() {
 		const today = new Date();
@@ -470,6 +516,25 @@ class FinanceStoreFacade {
 			d.dueDate &&
 			dateFromDateOnly(d.dueDate) < today
 		);
+	}
+
+	getGoalSuggestion(goalId: string) {
+		const goal = this.goals.find((item) => item.id === goalId);
+		if (!goal || !goal.deadline || goal.currentAmount >= goal.targetAmount) return null;
+		const deadline = dateFromDateOnly(goal.deadline);
+		const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 86400000));
+		const remaining = goal.targetAmount - goal.currentAmount;
+		const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
+		const requiredMonthly = remaining / monthsLeft;
+		const currentCapacity = Math.max(0, this.getMonthlyHealthMetrics().monthNet);
+		return {
+			remaining,
+			daysLeft,
+			requiredMonthly,
+			requiredWeekly: remaining / Math.max(1, Math.ceil(daysLeft / 7)),
+			currentCapacity,
+			isAffordable: currentCapacity >= requiredMonthly
+		};
 	}
 
 	// === Derived Summaries & Health ===
