@@ -54,6 +54,14 @@ test('actualiza solo la moneda activa con el proveedor de tasas', async ({ page 
 	expect(requestedQuotes).toBe('USD');
 });
 
+test('al cambiar la moneda base invalida las tasas de la base anterior', async ({ page }) => {
+	await page.goto('/ajustes/moneda');
+	await page.locator('input[placeholder="PEN, USD, EUR..."]').fill('USD');
+	await page.getByRole('button', { name: 'Guardar Cambios' }).click();
+	await expect(page.locator('textarea')).toHaveValue('');
+	await expect(page.getByText('Al guardar, se descartarán las tasas actuales porque pertenecen a la moneda base anterior.', { exact: false })).not.toBeVisible();
+});
+
 test('importa un CSV después de mostrar una vista previa', async ({ page }) => {
 	await page.goto('/importar');
 	await page.locator('input[type="file"]').setInputFiles({

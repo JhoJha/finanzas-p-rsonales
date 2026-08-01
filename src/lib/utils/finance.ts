@@ -2,10 +2,20 @@ import type { Account, Settings, Transaction } from '$lib/schema';
 
 type CurrencySettings = Pick<Settings, 'baseCurrency' | 'exchangeRates'>;
 
+export class MissingExchangeRateError extends Error {
+	constructor(currency: string, baseCurrency: string) {
+		super(`Falta la tasa para convertir ${currency} a ${baseCurrency}.`);
+		this.name = 'MissingExchangeRateError';
+	}
+}
+
 /** Devuelve cuántas unidades de la moneda base representa una unidad de `currency`. */
 export function getExchangeRateToBase(currency: string | undefined, settings: CurrencySettings): number {
 	const from = (currency || settings.baseCurrency).toUpperCase();
-	return from === settings.baseCurrency.toUpperCase() ? 1 : settings.exchangeRates[from] ?? 1;
+	if (from === settings.baseCurrency.toUpperCase()) return 1;
+	const rate = settings.exchangeRates[from];
+	if (!rate) throw new MissingExchangeRateError(from, settings.baseCurrency);
+	return rate;
 }
 
 export function convertAmountToBase(amount: number, exchangeRate: number): number {

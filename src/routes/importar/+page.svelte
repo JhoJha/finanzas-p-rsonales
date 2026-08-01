@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
-	import { MAX_IMPORT_FILE_BYTES, normalizeMerchant, parseBankDate, parseImportCsv } from '$lib/utils/import';
+	import { MAX_IMPORT_FILE_BYTES, normalizeMerchant, parseBankDate, parseImportCsvWithDiagnostics } from '$lib/utils/import';
 	import type { ImportRow } from '$lib/schema';
 	import { ArrowLeft, FileUp, Save, Trash2 } from '@lucide/svelte';
 
@@ -29,11 +29,11 @@
 		if (file.size > MAX_IMPORT_FILE_BYTES) { toastStore.add('El CSV supera el límite de 5 MB.', 'error'); return; }
 		if (!/\.(csv|txt)$/i.test(file.name)) { toastStore.add('Por ahora importa CSV (puedes exportarlo desde Excel).', 'info'); return; }
 		try {
-			const parsed = parseImportCsv(await file.text(), financeStore.categories, financeStore.settings.importRules);
-			rows = parsed.map((row) => ({ ...row, duplicate: duplicate(row), selected: !duplicate(row) }));
+			const parsed = parseImportCsvWithDiagnostics(await file.text(), financeStore.categories, financeStore.settings.importRules);
+			rows = parsed.rows.map((row) => ({ ...row, duplicate: duplicate(row), selected: !duplicate(row) }));
 			fileName = file.name;
 			selectedAccountId = financeStore.accounts[0]?.id ?? '';
-			toastStore.add(`${rows.length} movimientos listos para revisar.`, 'success');
+			toastStore.add(`${rows.length} movimientos listos para revisar.${parsed.skipped ? ` ${parsed.skipped} fila(s) se omitieron por importe o descripción inválidos.` : ''}`, parsed.skipped ? 'warning' : 'success');
 		} catch (error) { toastStore.add(error instanceof Error ? error.message : 'No se pudo leer el CSV.', 'error'); }
 	}
 

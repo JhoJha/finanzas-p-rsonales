@@ -33,7 +33,40 @@ function columnIndex(headers: string[], patterns: RegExp[]): number {
 	return headers.findIndex((header) => patterns.some((pattern) => pattern.test(header)));
 }
 
-export function parseImportCsv(text: string, categories: Category[], rules: ImportRule[]): ImportRow[] {
+/** Interpreta separadores latinos e ingleses, espacios y negativos entre paréntesis. */
+export function parseImportAmount(value: string): number | null {
+	let input = value.trim();
+	if (!input) return null;
+	const parenthesized = /^\(.*\)$/.test(input);
+	input = input.replace(/[()\s']/g, '').replace(/[^0-9,.-]/g, '');
+	const negative = parenthesized || input.startsWith('-');
+	input = input.replace(/-/g, '');
+	if (!input || !/\d/.test(input)) return null;
+
+	const lastComma = input.lastIndexOf(',');
+	const lastDot = input.lastIndexOf('.');
+	let decimalSeparator = '';
+	if (lastComma >= 0 && lastDot >= 0) decimalSeparator = lastComma > lastDot ? ',' : '.';
+	else if (lastComma >= 0) decimalSeparator = input.length - lastComma - 1 <= 2 ? ',' : '';
+	else if (lastDot >= 0) decimalSeparator = input.length - lastDot - 1 <= 2 ? '.' : '';
+
+	let normalized: string;
+	if (decimalSeparator) {
+		const grouping = decimalSeparator === ',' ? /\./g : /,/g;
+		normalized = input.replace(grouping, '').replace(decimalSeparator, '.');
+	} else {
+		normalized = input.replace(/[.,]/g, '');
+	}
+	const amount = Number(normalized);
+	return Number.isFinite(amount) && amount !== 0 ? (negative ? -amount : amount) : null;
+}
+
+export interface ImportParseResult {
+	rows: ImportRow[];
+	skipped: number;
+}
+
+export function parseImportCsvWithDiagnostics(text: string, categories: Category[], rules: ImportRule[]): ImportParseResult {
 	const table = parseDelimited(text.replace(/^\uFEFF/, ''));
 	if (table.length < 2) throw new Error('El archivo debe incluir encabezados y al menos un movimiento.');
 	const headers = table[0].map((cell) => normalizeMerchant(cell).toLowerCase());
@@ -44,18 +77,24 @@ export function parseImportCsv(text: string, categories: Category[], rules: Impo
 	const descriptionIndex = columnIndex(headers, [/descripcion/, /detalle/, /concepto/, /comercio/, /merchant/, /glosa/]);
 	if (dateIndex < 0 || (amountIndex < 0 && debitIndex < 0 && creditIndex < 0) || descriptionIndex < 0) throw new Error('No se detectaron Fecha, Monto (o Debe/Haber) y Descripción. Usa esos encabezados en tu CSV.');
 
-	return table.slice(1, 501).flatMap((cells, index) => {
-		const parseAmount = (value: string) => Number(value.replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')) || 0;
-		const amount = amountIndex >= 0
-			? parseAmount(cells[amountIndex] || '')
-			: parseAmount(cells[creditIndex] || '') - parseAmount(cells[debitIndex] || '');
+	let skipped = 0;
+	const rows = table.slice(1, 501).flatMap((cells, index) => {
+		const directAmount = amountIndex >= 0 ? parseImportAmount(cells[amountIndex] || '') : null;
+		const debit = debitIndex >= 0 ? parseImportAmount(cells[debitIndex] || '') : null;
+		const credit = creditIndex >= 0 ? parseImportAmount(cells[creditIndex] || '') : null;
+		const amount = amountIndex >= 0 ? directAmount : (credit === null ? 0 : Math.abs(credit)) - (debit === null ? 0 : Math.abs(debit));
 		const description = (cells[descriptionIndex] || '').trim();
-		if (!description || !Number.isFinite(amount) || amount === 0) return [];
+		if (!description || amount === null || !Number.isFinite(amount) || amount === 0) { skipped++; return []; }
 		const merchant = normalizeMerchant(description);
 		const rule = rules.find((item) => merchant.includes(normalizeMerchant(item.merchant)));
 		const fallback = categories.find((category) => category.type === (amount < 0 ? 'expense' : 'income') && merchant.includes(normalizeMerchant(category.name)));
 		return [{ id: `row-${index}`, date: (cells[dateIndex] || '').trim(), amount, description, merchant, categoryId: rule?.categoryId ?? fallback?.id, duplicate: false, selected: true }];
 	});
+	return { rows, skipped };
+}
+
+export function parseImportCsv(text: string, categories: Category[], rules: ImportRule[]): ImportRow[] {
+	return parseImportCsvWithDiagnostics(text, categories, rules).rows;
 }
 
 export function importRowDuplicateKey(row: Pick<ImportRow, 'date' | 'amount' | 'merchant'>): string {

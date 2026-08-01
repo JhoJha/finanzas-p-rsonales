@@ -32,6 +32,6 @@ export class DebtsStore {
 	}
 
 	save() {
-		saveToStorage('finances_debts', $state.snapshot(this.data));
+		void saveToStorage('finances_debts', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy debts state', error));
 	}
 }

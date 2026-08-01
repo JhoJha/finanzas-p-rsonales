@@ -44,12 +44,10 @@ export async function saveToStorage<T>(key: string, value: T): Promise<void> {
 	
 	try {
 		const { set } = await import('idb-keyval');
-		// We use structured cloning in IDB, but to strip out reactivity proxies (like Svelte state), 
-		// sometimes $state.snapshot is needed. We assume the caller handles snapshotting or we JSON stringify/parse to be safe.
-		// For performance, we assume the caller passes plain objects or uses $state.snapshot.
 		await set(key, value);
 	} catch (e) {
 		console.error(`Error saving ${key} to storage`, e);
+		throw e;
 	}
 }
 

@@ -1,5 +1,6 @@
 const FRANKFURTER_API_URL = 'https://api.frankfurter.dev/v2/rates';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export type FrankfurterRate = {
 	base: string;
@@ -41,7 +42,17 @@ export async function fetchExchangeRatesToBase(baseCurrency: string, currencies:
 	const url = new URL(FRANKFURTER_API_URL);
 	url.searchParams.set('base', base);
 	url.searchParams.set('quotes', quotes.join(','));
-	const response = await fetch(url, { headers: { Accept: 'application/json' } });
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+	let response: Response;
+	try {
+		response = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+	} catch (error) {
+		if (error instanceof DOMException && error.name === 'AbortError') throw new Error('La consulta de tasas tardó demasiado. Intenta nuevamente.');
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
 	if (!response.ok) throw new Error('No se pudo consultar el tipo de cambio.');
 	const payload: unknown = await response.json();
 	if (!Array.isArray(payload)) throw new Error('La respuesta del proveedor no es válida.');

@@ -35,6 +35,6 @@ export class SettingsStore {
 	}
 
 	save() {
-		saveToStorage('finances_settings', $state.snapshot(this.data));
+		void saveToStorage('finances_settings', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy settings state', error));
 	}
 }

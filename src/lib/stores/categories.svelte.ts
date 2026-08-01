@@ -28,6 +28,6 @@ export class CategoriesStore {
 	}
 
 	save() {
-		saveToStorage('finances_categories', $state.snapshot(this.data));
+		void saveToStorage('finances_categories', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy categories state', error));
 	}
 }

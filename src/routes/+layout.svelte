@@ -119,6 +119,16 @@
 			deferredPrompt = null;
 		}
 	}
+
+	function exportEmergencyBackup() {
+		const blob = new Blob([financeStore.exportToJSON()], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = `finanzas_respaldo_urgente_${new Date().toISOString().slice(0, 10)}.json`;
+		link.click();
+		URL.revokeObjectURL(url);
+	}
 </script>
 
 <svelte:head>
@@ -129,6 +139,15 @@
 
 <div class="flex h-screen flex-col bg-bg text-text">
 	<ToastProvider />
+	{#if financeStore.persistenceStatus === 'error'}
+		<div class="fixed left-4 right-4 top-3 z-[60] rounded-2xl p-3 shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-danger); color: var(--color-text);">
+			<p class="text-sm font-semibold">No se guardaron los últimos cambios.</p>
+			<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">{financeStore.persistenceError} Exporta un respaldo antes de cerrar o recargar.</p>
+			<button onclick={exportEmergencyBackup} class="mt-2 rounded-lg px-3 py-2 text-xs font-bold text-white" style="background-color: var(--color-danger);">Exportar respaldo ahora</button>
+		</div>
+	{:else if financeStore.persistenceStatus === 'saving'}
+		<div class="fixed right-4 top-3 z-[60] rounded-full px-3 py-1 text-xs shadow" style="background-color: var(--color-surface); color: var(--color-text-secondary); border: 1px solid var(--color-border);">Guardando cambios…</div>
+	{/if}
 	{#if isLocked}
 		<main class="flex flex-1 items-center justify-center p-6">
 			<div class="w-full max-w-sm rounded-3xl p-6 text-center shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">

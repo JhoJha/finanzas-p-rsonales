@@ -16,6 +16,7 @@
 	);
 	let isRefreshing = $state(false);
 	let lastUpdatedAt = $derived(financeStore.settings?.exchangeRatesUpdatedAt);
+	let isChangingBaseCurrency = $derived(baseCurrency.trim().toUpperCase() !== financeStore.settings.baseCurrency);
 
 	function syncRatesText() {
 		exchangeRatesText = Object.entries(financeStore.settings?.exchangeRates || {})
@@ -39,6 +40,7 @@
 
 	function saveSettings() {
 		try {
+			const changingBaseCurrency = isChangingBaseCurrency;
 			const newRates: Record<string, number> = {};
 			
 			const lines = exchangeRatesText.split('\n').map(l => l.trim()).filter(Boolean);
@@ -58,6 +60,7 @@
 				baseCurrency: baseCurrency.toUpperCase(),
 				exchangeRates: newRates
 			})) return;
+			if (changingBaseCurrency) syncRatesText();
 			
 			toastStore.add('Configuración guardada', 'success');
 		} catch (e: any) {
@@ -79,6 +82,9 @@
 		<p class="mb-4 text-xs" style="color: var(--color-text-secondary);">Esta es la moneda en la que se mostrará tu Saldo Total y tus Análisis globales.</p>
 		
 		<input type="text" bind:value={baseCurrency} placeholder="PEN, USD, EUR..." class="w-full rounded-xl p-3 outline-none uppercase font-bold" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+		{#if isChangingBaseCurrency}
+			<p class="mt-3 rounded-lg p-3 text-xs" style="background-color: color-mix(in srgb, var(--color-warning) 12%, transparent); color: var(--color-text-secondary); border: 1px solid var(--color-warning);">Al guardar, se descartarán las tasas actuales porque pertenecen a la moneda base anterior. Luego podrás configurar tasas nuevas.</p>
+		{/if}
 	</div>
 
 	<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">

@@ -6,6 +6,13 @@ export const INTERNAL_CATEGORY_SAVINGS = '__savings__';
 
 const EntityId = z.string().trim().min(1);
 const PositiveAmount = z.number().finite().positive();
+const CurrencyCode = z.string().trim().regex(/^[A-Z]{3}$/, 'Usa un código ISO de moneda en mayúsculas, por ejemplo USD.');
+const IsoDateTime = z.string().datetime({ offset: true });
+const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe usar el formato YYYY-MM-DD.').refine((value) => {
+	const [year, month, day] = value.split('-').map(Number);
+	const date = new Date(year, month - 1, day);
+	return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}, 'La fecha no existe en el calendario.');
 
 export const CategorySchema = z.object({
 	id: EntityId,
@@ -24,16 +31,16 @@ export const AccountSchema = z.object({
 	initialBalance: z.number().finite().optional(),
 	balance: z.number().finite(),
 	color: z.string().optional(),
-	currency: z.string().optional(),
-	createdAt: z.string().optional()
+	currency: CurrencyCode.optional(),
+	createdAt: IsoDateTime.optional()
 });
 
 export const SettingsSchema = z.object({
-	baseCurrency: z.string().trim().min(3).max(3),
-	exchangeRates: z.record(z.string(), z.number().finite().positive()),
+	baseCurrency: CurrencyCode,
+	exchangeRates: z.record(CurrencyCode, z.number().finite().positive()),
 	// Fecha de la última consulta automática. Es opcional para conservar los
 	// respaldos anteriores y permitir una actualización al abrir la aplicación.
-	exchangeRatesUpdatedAt: z.string().datetime().optional(),
+	exchangeRatesUpdatedAt: IsoDateTime.optional(),
 	budgetAlertThreshold: z.number().int().min(50).max(100).default(80),
 	security: z.object({
 		pinSalt: z.string().min(1),
@@ -63,7 +70,7 @@ export const SettingsSchema = z.object({
 
 export const TransactionSchema = z.object({
 	id: EntityId,
-	date: z.string().trim().min(1),
+	date: IsoDateTime,
 	timestamp: z.number().finite().optional(),
 	amount: PositiveAmount,
 	categoryId: EntityId,
@@ -79,7 +86,7 @@ export const TransactionSchema = z.object({
 	// Se capturan al crear el movimiento para que los reportes históricos no
 	// cambien cuando el usuario actualiza sus tasas de cambio.
 	exchangeRate: z.number().finite().positive().optional(),
-	baseCurrency: z.string().trim().min(3).max(3).optional(),
+	baseCurrency: CurrencyCode.optional(),
 	debtId: EntityId.optional(),
 	goalId: EntityId.optional(),
 	linkedAmount: PositiveAmount.optional()
@@ -90,8 +97,8 @@ export const GoalSchema = z.object({
 	name: z.string().trim().min(1),
 	targetAmount: PositiveAmount,
 	currentAmount: z.number().finite().nonnegative(),
-	deadline: z.string().optional(),
-	createdAt: z.string().optional()
+	deadline: DateOnly.optional(),
+	createdAt: IsoDateTime.optional()
 });
 
 export const BudgetSchema = z.object({
@@ -110,9 +117,11 @@ export const RecurringTransactionSchema = z.object({
 	toAccountId: EntityId.optional(),
 	toAmount: PositiveAmount.optional(),
 	note: z.string().optional(),
+	// Permite que el pronóstico reconozca una cuota de deuda ya programada.
+	debtId: EntityId.optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
 	frequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly']),
-	nextDate: z.string()
+	nextDate: DateOnly
 });
 
 export const DebtSchema = z.object({
@@ -121,12 +130,12 @@ export const DebtSchema = z.object({
 	contactName: z.string().trim().min(1),
 	totalAmount: PositiveAmount,
 	paidAmount: z.number().finite().nonnegative(),
-	dueDate: z.string().optional(), // ISO date
+	dueDate: DateOnly.optional(),
 	status: z.enum(['pending', 'paid']),
 	accountId: z.string().optional(), // Default account for related transactions
 	interestRateAnnual: z.number().finite().min(0).max(100).optional(),
 	installmentAmount: PositiveAmount.optional(),
-	createdAt: z.string().optional()
+	createdAt: IsoDateTime.optional()
 }).refine((debt) => debt.paidAmount <= debt.totalAmount, {
 	message: 'El monto abonado no puede superar el total de la deuda',
 	path: ['paidAmount']
@@ -142,7 +151,7 @@ export const BackupSchema = z.object({
 	recurringTransactions: z.array(RecurringTransactionSchema),
 	debts: z.array(DebtSchema),
 	settings: SettingsSchema.optional(),
-	exportedAt: z.string().optional()
+	exportedAt: IsoDateTime.optional()
 }).passthrough();
 
 export const ImportRowSchema = z.object({

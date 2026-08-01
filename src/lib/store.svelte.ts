@@ -24,6 +24,7 @@ export type ExchangeRateRefreshResult =
 	| { status: 'updated'; currencies: string[] }
 	| { status: 'not-needed' | 'up-to-date' | 'unavailable' }
 	| { status: 'failed'; error: string };
+export type PersistenceStatus = 'saved' | 'saving' | 'error';
 
 class FinanceStoreFacade {
 	private accountsStore = new AccountsStore();
@@ -36,6 +37,9 @@ class FinanceStoreFacade {
 	private settingsStore = new SettingsStore();
 
 	isReady = $state(false);
+	persistenceStatus = $state<PersistenceStatus>('saved');
+	lastSavedAt = $state<string | undefined>(undefined);
+	persistenceError = $state<string | undefined>(undefined);
 	private lastDeletedTransaction: Transaction | null = null;
 	private backupTimer: ReturnType<typeof setTimeout> | undefined;
 	private persistenceQueue: Promise<void> = Promise.resolve();
@@ -159,19 +163,36 @@ class FinanceStoreFacade {
 			budgets: $state.snapshot(this.budgetsStore.data), recurringTransactions: $state.snapshot(this.recurringStore.data),
 			debts: $state.snapshot(this.debtsStore.data), settings: $state.snapshot(this.settingsStore.data)
 		};
+		this.persistenceStatus = 'saving';
+		this.persistenceError = undefined;
 		this.persistenceQueue = this.persistenceQueue
+			.catch(() => undefined)
 			.then(() => saveFinanceSnapshot(snapshot))
-			.catch((error) => console.error('Could not persist finance state', error));
+			.then(() => {
+				this.persistenceStatus = 'saved';
+				this.lastSavedAt = new Date().toISOString();
+			})
+			.catch((error) => {
+				console.error('Could not persist finance state', error);
+				this.persistenceStatus = 'error';
+				this.persistenceError = 'No se pudieron guardar los cambios en este dispositivo.';
+			});
 	}
 
 	private scheduleAutomaticBackup() {
 		if (!browser) return;
 		this.persistState();
 		if (this.backupTimer) clearTimeout(this.backupTimer);
-		this.backupTimer = setTimeout(async () => {
-			const snapshot = JSON.parse(this.exportToJSON());
-			const history = await loadFromStorage<any[]>('finances_backup_history', []);
-			await saveToStorage('finances_backup_history', [snapshot, ...history].slice(0, 5));
+		this.backupTimer = setTimeout(() => {
+			void (async () => {
+				try {
+					const snapshot = JSON.parse(this.exportToJSON());
+					const history = await loadFromStorage<any[]>('finances_backup_history', []);
+					await saveToStorage('finances_backup_history', [snapshot, ...history].slice(0, 5));
+				} catch (error) {
+					console.warn('Could not save automatic backup history', error);
+				}
+			})();
 		}, 500);
 	}
 
@@ -528,6 +549,7 @@ class FinanceStoreFacade {
 						accountId: rt.accountId,
 						toAccountId: rt.toAccountId,
 						toAmount: rt.toAmount,
+						debtId: rt.debtId,
 						note: rt.note,
 						type: rt.type
 					}
@@ -976,8 +998,17 @@ class FinanceStoreFacade {
 	}
 	// === Settings ===
 	updateSettings(newData: Partial<Settings>) {
-		const candidate = { ...this.settings, ...newData, baseCurrency: newData.baseCurrency?.trim().toUpperCase() ?? this.settings.baseCurrency };
-		if (candidate.baseCurrency !== this.settings.baseCurrency && (this.transactions.length > 0 || this.goals.length > 0 || this.debts.length > 0 || this.accounts.some((account) => (account.initialBalance ?? 0) !== 0 || Boolean(account.currency)))) {
+		const requestedBaseCurrency = newData.baseCurrency?.trim().toUpperCase() ?? this.settings.baseCurrency;
+		const isChangingBaseCurrency = requestedBaseCurrency !== this.settings.baseCurrency;
+		const candidate = {
+			...this.settings,
+			...newData,
+			baseCurrency: requestedBaseCurrency,
+			// Las tasas solo son válidas respecto de una base concreta; nunca se reinterpretan.
+			exchangeRates: isChangingBaseCurrency ? {} : (newData.exchangeRates ?? this.settings.exchangeRates),
+			exchangeRatesUpdatedAt: isChangingBaseCurrency ? undefined : (newData.exchangeRatesUpdatedAt ?? this.settings.exchangeRatesUpdatedAt)
+		};
+		if (isChangingBaseCurrency && (this.transactions.length > 0 || this.goals.length > 0 || this.debts.length > 0 || this.accounts.some((account) => (account.initialBalance ?? 0) !== 0 || Boolean(account.currency)))) {
 			toastStore.add('No puedes cambiar la moneda base mientras existan datos. Crea un backup y migra explícitamente tus importes.', 'error');
 			return false;
 		}

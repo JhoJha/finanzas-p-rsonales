@@ -29,6 +29,6 @@ export class RecurringStore {
 	}
 
 	save() {
-		saveToStorage('finances_recurring', $state.snapshot(this.data));
+		void saveToStorage('finances_recurring', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy recurring state', error));
 	}
 }

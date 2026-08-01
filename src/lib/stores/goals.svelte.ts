@@ -32,6 +32,6 @@ export class GoalsStore {
 	}
 
 	save() {
-		saveToStorage('finances_goals', $state.snapshot(this.data));
+		void saveToStorage('finances_goals', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy goals state', error));
 	}
 }

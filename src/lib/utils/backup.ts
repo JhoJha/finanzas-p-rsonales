@@ -54,6 +54,25 @@ export function parseAndValidateBackup(json: string): FinanceBackup {
 		if (debt.accountId && !accountIds.has(debt.accountId)) throw new Error('El backup contiene una deuda con cuenta inexistente.');
 	}
 
+	const foreignCurrencies = [...new Set(backup.accounts
+		.map((account) => account.currency ?? backup.settings?.baseCurrency)
+		.filter((currency): currency is string => Boolean(currency) && currency !== backup.settings?.baseCurrency))];
+	if (foreignCurrencies.length && !backup.settings) throw new Error('El backup tiene cuentas en otra moneda, pero no incluye su configuración de tasas.');
+	if (backup.settings) {
+		for (const currency of foreignCurrencies) {
+			if (!backup.settings.exchangeRates[currency]) throw new Error(`El backup no incluye una tasa para ${currency}.`);
+		}
+		if (backup.settings.exchangeRates[backup.settings.baseCurrency]) throw new Error('El backup no debe incluir una tasa para la moneda base.');
+		for (const transaction of backup.transactions) {
+			if (transaction.baseCurrency && transaction.baseCurrency !== backup.settings.baseCurrency) {
+				throw new Error('El backup mezcla movimientos con una moneda base distinta.');
+			}
+		}
+		for (const rule of backup.settings.importRules) {
+			if (!categoryIds.has(rule.categoryId)) throw new Error('El backup contiene una regla de importación con categoría inexistente.');
+		}
+	}
+
 	return { ...backup, categories };
 }
 

@@ -4,13 +4,14 @@ import { parseAndValidateBackup } from '$lib/utils/backup';
 import { dateFromDateOnly } from '$lib/utils/date';
 import {
 	applyTransactionToAccountBalances,
+	getExchangeRateToBase,
 	isValidDebtPayment,
 	projectDebtRepayment,
 	transactionAmountInBase
 } from '$lib/utils/finance';
 import { calculateCashForecast, detectSubscriptions } from '$lib/utils/forecast';
 import { buildMonthlyReview, buildNetWorthHistory } from '$lib/utils/insights';
-import { parseBankDate, parseImportCsv } from '$lib/utils/import';
+import { parseBankDate, parseImportAmount, parseImportCsv } from '$lib/utils/import';
 import { ratesToBaseCurrency, shouldRefreshExchangeRates } from '$lib/utils/exchange-rates';
 
 const accounts: Account[] = [
@@ -120,6 +121,35 @@ describe('reglas financieras', () => {
 	it('convierte tasas del proveedor a la moneda base y respeta el intervalo diario', () => {
 		expect(ratesToBaseCurrency([{ base: 'PEN', quote: 'USD', rate: 0.25, date: '2026-07-31' }], 'PEN', ['USD'])).toEqual({ USD: 4 });
 		expect(shouldRefreshExchangeRates('2026-07-31T10:00:00.000Z', Date.parse('2026-08-01T09:59:59.999Z'))).toBe(false);
-		expect(shouldRefreshExchangeRates('2026-07-31T10:00:00.000Z', Date.parse('2026-08-01T10:00:00.000Z'))).toBe(true);
+		 expect(shouldRefreshExchangeRates('2026-07-31T10:00:00.000Z', Date.parse('2026-08-01T10:00:00.000Z'))).toBe(true);
+	});
+});
+
+describe('resiliencia P6.2', () => {
+	it('no convierte una moneda sin tasa como si fuera 1:1', () => {
+		expect(() => getExchangeRateToBase('USD', { baseCurrency: 'PEN', exchangeRates: {} })).toThrow('Falta la tasa');
+	});
+
+	it('rechaza respaldos con una cuenta extranjera sin tasa', () => {
+		const backup = {
+			version: 3, transactions: [], categories: [], goals: [], budgets: [], recurringTransactions: [], debts: [],
+			accounts: [{ id: 'usd', name: 'Dólares', type: 'bank', balance: 0, currency: 'USD' }],
+			settings: { baseCurrency: 'PEN', exchangeRates: {} }
+		};
+		expect(() => parseAndValidateBackup(JSON.stringify(backup))).toThrow('tasa para USD');
+	});
+
+	it('no proyecta dos veces una cuota de deuda ya pagada este mes', () => {
+		const settings = { baseCurrency: 'PEN', exchangeRates: {} };
+		const payment: Transaction = { id: 'payment', date: '2026-07-15T12:00:00.000Z', timestamp: new Date('2026-07-15T12:00:00.000Z').getTime(), amount: 100, linkedAmount: 100, categoryId: '__debt-payment__', accountId: 'cash', type: 'expense', debtId: 'debt' };
+		const forecast = calculateCashForecast(accounts, [payment], [], [{ id: 'debt', type: 'i_owe', contactName: 'Banco', totalAmount: 500, paidAmount: 100, installmentAmount: 100, status: 'pending' }], [], [], settings, new Date('2026-07-31T12:00:00'));
+		expect(forecast.debtPayments).toBe(0);
+	});
+
+	it('interpreta importes bancarios internacionales y negativos', () => {
+		expect(parseImportAmount('1,234.56')).toBe(1234.56);
+		expect(parseImportAmount('1 234,56')).toBe(1234.56);
+		expect(parseImportAmount('(35.50)')).toBe(-35.5);
+		expect(parseImportAmount('-35,50')).toBe(-35.5);
 	});
 });

@@ -24,6 +24,6 @@ export class BudgetsStore {
 	}
 
 	save() {
-		saveToStorage('finances_budgets', $state.snapshot(this.data));
+		void saveToStorage('finances_budgets', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy budgets state', error));
 	}
 }

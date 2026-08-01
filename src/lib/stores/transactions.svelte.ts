@@ -43,6 +43,6 @@ export class TransactionsStore {
 	}
 
 	save() {
-		saveToStorage('finances_transactions', $state.snapshot(this.data));
+		void saveToStorage('finances_transactions', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy transactions state', error));
 	}
 }
