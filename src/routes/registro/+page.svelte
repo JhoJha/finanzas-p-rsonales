@@ -257,6 +257,7 @@
 					💰 Ingreso
 				</button>
 				<button
+					data-testid="transaction-type-transfer"
 					class="flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all active:scale-95"
 					style="background-color: {type === 'transfer' ? 'color-mix(in srgb, var(--color-primary) 15%, transparent)' : 'var(--color-bg)'}; color: {type === 'transfer' ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
 					onclick={() => { type = 'transfer'; }}
@@ -271,6 +272,7 @@
 					Monto ({selectedAccount?.currency || financeStore.settings.baseCurrency}) <span class="font-normal opacity-70">(soporta sumas ej. 15+20)</span>
 				</label>
 				<input id="a11y-1"
+					data-testid="transaction-amount"
 					type="text"
 					inputmode="decimal"
 					value={amount}
@@ -422,6 +424,7 @@
 			<!-- Submit -->
 			<button
 				onclick={saveTransaction}
+				data-testid="transaction-save"
 				class="flex w-full items-center justify-center gap-2 rounded-xl py-4 font-bold text-white shadow-lg transition-all active:scale-95"
 				style="background-color: var(--color-primary);"
 			>
