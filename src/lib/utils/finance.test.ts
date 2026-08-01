@@ -5,12 +5,13 @@ import { dateFromDateOnly } from '$lib/utils/date';
 import {
 	applyTransactionToAccountBalances,
 	getExchangeRateToBase,
+	getMissingExchangeRateCurrencies,
 	isValidDebtPayment,
 	projectDebtRepayment,
 	transactionAmountInBase
 } from '$lib/utils/finance';
 import { calculateCashForecast, detectSubscriptions } from '$lib/utils/forecast';
-import { buildMonthlyReview, buildNetWorthHistory } from '$lib/utils/insights';
+import { buildMonthlyReview, buildNetWorthHistory, invalidateNetWorthSnapshotsFrom } from '$lib/utils/insights';
 import { parseBankDate, parseImportAmount, parseImportCsv } from '$lib/utils/import';
 import { ratesToBaseCurrency, shouldRefreshExchangeRates } from '$lib/utils/exchange-rates';
 
@@ -125,9 +126,10 @@ describe('reglas financieras', () => {
 	});
 });
 
-describe('resiliencia P6.2', () => {
+describe('resiliencia P6.2/P6.3', () => {
 	it('no convierte una moneda sin tasa como si fuera 1:1', () => {
 		expect(() => getExchangeRateToBase('USD', { baseCurrency: 'PEN', exchangeRates: {} })).toThrow('Falta la tasa');
+		expect(getMissingExchangeRateCurrencies([{ currency: 'USD' }, { currency: 'EUR' }, { currency: 'PEN' }], { baseCurrency: 'PEN', exchangeRates: { EUR: 4.2 } })).toEqual(['USD']);
 	});
 
 	it('rechaza respaldos con una cuenta extranjera sin tasa', () => {
@@ -161,5 +163,34 @@ describe('resiliencia P6.2', () => {
 			1, new Date('2026-06-30T12:00:00.000Z')
 		);
 		expect(history[0].netWorth).toBe(40);
+	});
+
+	it('invalida solo los cierres afectados por una corrección histórica', () => {
+		const snapshots = [
+			{ month: '2026-04-01', accounts: 10, savings: 0, receivables: 0, debts: 0, netWorth: 10, capturedAt: '2026-05-01T00:00:00.000Z' },
+			{ month: '2026-05-01', accounts: 20, savings: 0, receivables: 0, debts: 0, netWorth: 20, capturedAt: '2026-06-01T00:00:00.000Z' },
+			{ month: '2026-06-01', accounts: 30, savings: 0, receivables: 0, debts: 0, netWorth: 30, capturedAt: '2026-07-01T00:00:00.000Z' }
+		];
+		expect(invalidateNetWorthSnapshotsFrom(snapshots, '2026-05-17T12:00:00.000Z').map((snapshot) => snapshot.month)).toEqual(['2026-04-01']);
+	});
+
+	it('acepta una cuota recurrente vinculada y evita sumarla dos veces en el pronóstico', () => {
+		const settings = { baseCurrency: 'PEN', exchangeRates: {} };
+		const forecast = calculateCashForecast(
+			accounts, [], [{ id: 'debt-payment', amount: 100, categoryId: '__debt-payment__', accountId: 'cash', type: 'expense', debtId: 'debt', frequency: 'monthly', nextDate: '2026-07-31' }],
+			[{ id: 'debt', type: 'i_owe', contactName: 'Banco', totalAmount: 500, paidAmount: 0, installmentAmount: 100, status: 'pending' }], [], [], settings, new Date('2026-07-31T12:00:00')
+		);
+		expect(forecast.scheduledExpenses).toBe(100);
+		expect(forecast.debtPayments).toBe(0);
+	});
+
+	it('rechaza respaldos con un recurrente vinculado a una deuda inexistente', () => {
+		const backup = {
+			transactions: [], categories: [], goals: [], budgets: [], debts: [],
+			accounts: [{ id: 'cash', name: 'Efectivo', type: 'cash', balance: 0, currency: 'PEN' }],
+			recurringTransactions: [{ id: 'r1', amount: 50, categoryId: '__debt-payment__', accountId: 'cash', type: 'expense', debtId: 'missing', frequency: 'monthly', nextDate: '2026-08-01' }],
+			settings: { baseCurrency: 'PEN', exchangeRates: {} }
+		};
+		expect(() => parseAndValidateBackup(JSON.stringify(backup))).toThrow('recurrente vinculado');
 	});
 });

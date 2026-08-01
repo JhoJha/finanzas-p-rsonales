@@ -20,6 +20,9 @@
 	let isLocked = $state(false);
 	let lockPin = $state('');
 	let lockError = $state('');
+	let missingExchangeRateCurrencies = $derived(financeStore.missingExchangeRateCurrencies);
+	let isReportRoute = $derived(['/', '/analisis', '/pronostico', '/cierre', '/patrimonio', '/presupuestos', '/suscripciones', '/buscar'].includes(page.url.pathname));
+	let isReportBlocked = $derived(financeStore.isReady && missingExchangeRateCurrencies.length > 0 && isReportRoute);
 	const INACTIVITY_LOCK_MS = 5 * 60 * 1000;
 	let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -105,7 +108,7 @@
 
 	// Alerta proactiva de transacciones recurrentes pendientes
 	$effect(() => {
-		if (!financeStore.isReady) return;
+		if (!financeStore.isReady || missingExchangeRateCurrencies.length > 0) return;
 		const alreadyAlertedRecurring = sessionStorage.getItem('recurring_alert_shown');
 		if (alreadyAlertedRecurring) return;
 
@@ -123,7 +126,7 @@
 	});
 
 	$effect(() => {
-		if (!financeStore.isReady) return;
+		if (!financeStore.isReady || missingExchangeRateCurrencies.length > 0) return;
 		const alertKey = `budget_alerts_${new Date().toISOString().slice(0, 10)}`;
 		if (sessionStorage.getItem(alertKey)) return;
 		const alerts = financeStore.getBudgetAlerts();
@@ -150,6 +153,7 @@
 	}
 
 	function exportEmergencyBackup() {
+		if (isLocked) return;
 		const blob = new Blob([financeStore.exportToJSON()], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement('a');
@@ -168,7 +172,7 @@
 
 <div class="flex h-screen flex-col bg-bg text-text">
 	<ToastProvider />
-	{#if financeStore.persistenceStatus === 'error'}
+	{#if financeStore.persistenceStatus === 'error' && !isLocked}
 		<div class="fixed left-4 right-4 top-3 z-[60] rounded-2xl p-3 shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-danger); color: var(--color-text);">
 			<p class="text-sm font-semibold">No se guardaron los últimos cambios.</p>
 			<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">{financeStore.persistenceError} Exporta un respaldo antes de cerrar o recargar.</p>
@@ -241,7 +245,13 @@
 
 	<!-- Main content (con margen negativo para solaparse con el header) -->
 	<main class="relative -mt-12 flex-1 overflow-y-auto px-4 pb-32">
-		{#if financeStore.isReady}
+		{#if isReportBlocked}
+			<div class="mx-auto max-w-lg rounded-2xl p-5 text-center shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-warning);">
+				<h2 class="text-lg font-bold" style="color: var(--color-text);">Falta configurar una tasa de cambio</h2>
+				<p class="mt-2 text-sm" style="color: var(--color-text-secondary);">No mostraremos reportes con cifras incompletas. Configura una tasa para {missingExchangeRateCurrencies.join(', ')} y vuelve a intentarlo.</p>
+				<a href="/ajustes/moneda" class="mt-4 inline-flex rounded-xl px-4 py-2 text-sm font-bold text-white" style="background-color: var(--color-primary);">Configurar tasas</a>
+			</div>
+		{:else if financeStore.isReady}
 			{@render children()}
 		{:else}
 			<div class="space-y-5 animate-pulse opacity-70">

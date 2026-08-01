@@ -82,6 +82,7 @@
 		<h1 class="text-2xl font-bold" style="color: var(--color-text);">Deudas y Préstamos</h1>
 		<button
 			onclick={() => (showAddModal = true)}
+			aria-label="Añadir deuda"
 			class="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-md transition-all active:scale-95"
 			style="background-color: var(--color-primary);"
 		>

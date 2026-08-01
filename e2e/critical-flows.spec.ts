@@ -78,6 +78,23 @@ test('importa un CSV después de mostrar una vista previa', async ({ page }) => 
 	await expect(page.getByText('Supermercado', { exact: true })).toBeVisible();
 });
 
+test('vincula un pago recurrente a una deuda pendiente', async ({ page }) => {
+	await page.goto('/deudas');
+	await page.getByRole('button', { name: 'Añadir deuda' }).click();
+	await page.locator('#a11y-15').fill('Banco de prueba');
+	await page.locator('#a11y-16').fill('500');
+	await page.locator('#debt-installment').fill('100');
+	await page.getByRole('button', { name: 'Guardar' }).click();
+	await expect(page.getByText('Banco de prueba', { exact: true })).toBeVisible();
+
+	await page.goto('/recurrentes');
+	await page.locator('#a11y-6').fill('100');
+	await page.locator('#recurring-debt').selectOption({ index: 1 });
+	await page.locator('#a11y-12').fill('Cuota del banco');
+	await page.getByRole('button', { name: 'Guardar Recurrente' }).click();
+	await expect(page.getByText('Abono a Banco de prueba', { exact: false })).toBeVisible();
+});
+
 test('bloquea una nueva sesión y exige el PIN configurado', async ({ page }) => {
 	await page.goto('/ajustes/seguridad');
 	await page.locator('#security-pin').fill('1234');
@@ -88,6 +105,7 @@ test('bloquea una nueva sesión y exige el PIN configurado', async ({ page }) =>
 	await page.evaluate(() => sessionStorage.removeItem('finances_unlocked'));
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Gestor bloqueado' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Exportar respaldo ahora' })).not.toBeVisible();
 	await page.locator('#app-unlock-pin').fill('0000');
 	await page.getByRole('button', { name: 'Desbloquear' }).click();
 	await expect(page.getByText('PIN incorrecto.', { exact: true })).toBeVisible();

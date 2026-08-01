@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
+	import { INTERNAL_CATEGORY_DEBT_PAYMENT } from '$lib/schema';
 	import { Repeat, Plus, Trash2, Check, X } from '@lucide/svelte';
 
 	let type = $state<'expense' | 'income' | 'transfer'>('expense');
@@ -13,6 +14,12 @@
 	let note = $state('');
 	let nextDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
 	let selectedAccount = $derived(financeStore.accounts.find((account) => account.id === accountId));
+	let debtId = $state('');
+	let payableDebts = $derived(financeStore.debts.filter((debt) => debt.type === 'i_owe' && debt.status === 'pending'));
+
+	function syncDebtLink() {
+		categoryId = debtId ? INTERNAL_CATEGORY_DEBT_PAYMENT : (financeStore.categories.filter((category) => category.type === 'expense' && !category.id.startsWith('__'))[0]?.id || '1');
+	}
 
 	function addRecurring() {
 		if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
@@ -28,10 +35,11 @@
 		financeStore.addRecurringTransaction({
 			id: crypto.randomUUID(),
 			amount: parseFloat(amount),
-			categoryId: type === 'transfer' ? 'transfer' : categoryId,
+			categoryId: type === 'transfer' ? 'transfer' : debtId ? INTERNAL_CATEGORY_DEBT_PAYMENT : categoryId,
 			accountId,
 			toAccountId: type === 'transfer' ? toAccountId : undefined,
 			note,
+			debtId: debtId || undefined,
 			type,
 			frequency,
 			nextDate
@@ -40,6 +48,7 @@
 		toastStore.add('Transacción recurrente creada', 'success');
 		amount = '';
 		note = '';
+		debtId = '';
 	}
 
 	function deleteRecurring(id: string) {
@@ -70,21 +79,21 @@
 			<button
 				class="flex-1 rounded-lg py-2 text-xs font-semibold transition-all active:scale-95"
 				style="background-color: {type === 'expense' ? 'color-mix(in srgb, var(--color-danger) 15%, transparent)' : 'var(--color-bg)'}; color: {type === 'expense' ? 'var(--color-danger)' : 'var(--color-text-secondary)'};"
-				onclick={() => { type = 'expense'; categoryId = financeStore.categories.filter(c => c.type === 'expense')[0]?.id || '1'; }}
+				onclick={() => { type = 'expense'; debtId = ''; categoryId = financeStore.categories.filter(c => c.type === 'expense' && !c.id.startsWith('__'))[0]?.id || '1'; }}
 			>
 				💸 Gasto
 			</button>
 			<button
 				class="flex-1 rounded-lg py-2 text-xs font-semibold transition-all active:scale-95"
 				style="background-color: {type === 'income' ? 'color-mix(in srgb, var(--color-success) 15%, transparent)' : 'var(--color-bg)'}; color: {type === 'income' ? 'var(--color-success)' : 'var(--color-text-secondary)'};"
-				onclick={() => { type = 'income'; categoryId = financeStore.categories.filter(c => c.type === 'income')[0]?.id || '6'; }}
+				onclick={() => { type = 'income'; debtId = ''; categoryId = financeStore.categories.filter(c => c.type === 'income')[0]?.id || '6'; }}
 			>
 				💰 Ingreso
 			</button>
 			<button
 				class="flex-1 rounded-lg py-2 text-xs font-semibold transition-all active:scale-95"
 				style="background-color: {type === 'transfer' ? 'color-mix(in srgb, var(--color-primary) 15%, transparent)' : 'var(--color-bg)'}; color: {type === 'transfer' ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
-				onclick={() => { type = 'transfer'; }}
+				onclick={() => { type = 'transfer'; debtId = ''; }}
 			>
 				🔄 Transf.
 			</button>
@@ -175,6 +184,19 @@
 				{/each}
 			</select>
 		</div>
+		{/if}
+
+		{#if type === 'expense' && payableDebts.length > 0}
+			<div>
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="recurring-debt">Vincular a deuda (opcional)</label>
+				<select id="recurring-debt" bind:value={debtId} onchange={syncDebtLink} class="mt-1 w-full rounded-xl p-3 text-sm outline-none transition-all" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
+					<option value="">No vincular a una deuda</option>
+					{#each payableDebts as debt}
+						<option value={debt.id}>{debt.contactName} · Pendiente {financeStore.formatCurrency(debt.totalAmount - debt.paidAmount)}</option>
+					{/each}
+				</select>
+				{#if debtId}<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">Al aprobar el pago recurrente se registrará también como abono a esta deuda.</p>{/if}
+			</div>
 		{/if}
 
 		<div>
@@ -287,6 +309,7 @@
 						</div>
 						<div class="text-xs" style="color: var(--color-text-secondary);">
 							Próximo: {formatDate(rt.nextDate)} • {rt.frequency === 'daily' ? 'Diario' : rt.frequency === 'weekly' ? 'Semanal' : rt.frequency === 'biweekly' ? 'Quincenal' : 'Mensual'}
+							{#if rt.debtId} • Abono a {financeStore.debts.find((debt) => debt.id === rt.debtId)?.contactName || 'deuda'}{/if}
 						</div>
 					</div>
 				</div>

@@ -9,6 +9,20 @@ export interface MonthlyReview {
 export interface NetWorthPoint { date: Date; label: string; accounts: number; savings: number; receivables: number; debts: number; netWorth: number; }
 type NetWorthSettings = Pick<Settings, 'baseCurrency' | 'exchangeRates'> & Partial<Pick<Settings, 'netWorthSnapshots'>>;
 
+/** Los cierres son una caché: una corrección invalida ese mes y los posteriores. */
+export function invalidateNetWorthSnapshotsFrom(
+	snapshots: Settings['netWorthSnapshots'],
+	affectedAt: string | Date
+): Settings['netWorthSnapshots'] {
+	const datePart = typeof affectedAt === 'string' ? affectedAt.slice(0, 10) : null;
+	const date = datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)
+		? new Date(`${datePart}T12:00:00`)
+		: new Date(affectedAt);
+	if (Number.isNaN(date.getTime())) return snapshots;
+	const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+	return snapshots.filter((snapshot) => snapshot.month < monthKey);
+}
+
 function monthWindow(date: Date) {
 	const start = new Date(date.getFullYear(), date.getMonth(), 1);
 	const end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);

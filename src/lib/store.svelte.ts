@@ -12,11 +12,11 @@ import { RecurringStore } from './stores/recurring.svelte';
 import { SettingsStore } from './stores/settings.svelte';
 import { formatCurrency } from './utils/currency';
 import { dateFromDateOnly, formatDateOnly } from './utils/date';
-import { getExchangeRateToBase, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
+import { getExchangeRateToBase, getMissingExchangeRateCurrencies, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
 import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
 import { loadFromStorage, saveToStorage, loadFinanceSnapshot, saveFinanceSnapshot } from './stores/storage';
 import { calculateCashForecast, detectSubscriptions } from './utils/forecast';
-import { buildMonthlyReview, buildNetWorthHistory } from './utils/insights';
+import { buildMonthlyReview, buildNetWorthHistory, invalidateNetWorthSnapshotsFrom } from './utils/insights';
 import { fetchExchangeRatesToBase, shouldRefreshExchangeRates } from './utils/exchange-rates';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
@@ -26,7 +26,7 @@ export type ExchangeRateRefreshResult =
 	| { status: 'failed'; error: string };
 export type PersistenceStatus = 'saved' | 'saving' | 'error';
 
-class FinanceStoreFacade {
+export class FinanceStoreFacade {
 	private accountsStore = new AccountsStore();
 	private transactionsStore = new TransactionsStore();
 	private categoriesStore = new CategoriesStore();
@@ -83,7 +83,7 @@ class FinanceStoreFacade {
 		
 		this.migrateInitialBalances();
 		this.recalculateBalances();
-		this.capturePreviousMonthNetWorth();
+		if (this.missingExchangeRateCurrencies.length === 0) this.capturePreviousMonthNetWorth();
 		// Recurring txs are no longer processed automatically, user must approve them
 		
 		this.isReady = true;
@@ -211,6 +211,17 @@ class FinanceStoreFacade {
 	get debts() { return this.debtsStore.data; }
 	get accounts() { return this.accountsStore.data; }
 	get settings() { return this.settingsStore.data; }
+	/** Monedas de cuentas que impedirían convertir cifras con seguridad. */
+	get missingExchangeRateCurrencies(): string[] {
+		return getMissingExchangeRateCurrencies(this.accounts, this.settings);
+	}
+
+	private invalidateNetWorthSnapshots(affectedAt: string | Date) {
+		const snapshots = invalidateNetWorthSnapshotsFrom(this.settings.netWorthSnapshots, affectedAt);
+		if (snapshots.length !== this.settings.netWorthSnapshots.length) {
+			this.settingsStore.updateSettings({ netWorthSnapshots: snapshots });
+		}
+	}
 
 	/** Actualiza las tasas de las monedas realmente usadas por las cuentas. */
 	refreshExchangeRates(force = false): Promise<ExchangeRateRefreshResult> {
@@ -253,6 +264,7 @@ class FinanceStoreFacade {
 		}
 		this.transactionsStore.addTransaction(parsed.data);
 		this.applyTransactionEffect(parsed.data, 1);
+		this.invalidateNetWorthSnapshots(parsed.data.date);
 		this.scheduleAutomaticBackup();
 		return true;
 	}
@@ -281,6 +293,7 @@ class FinanceStoreFacade {
 		if (candidates.length) {
 			this.transactionsStore.data = [...this.transactionsStore.data, ...candidates];
 			this.recalculateBalances();
+			this.invalidateNetWorthSnapshots(candidates.reduce((earliest, transaction) => transaction.date < earliest ? transaction.date : earliest, candidates[0].date));
 			this.scheduleAutomaticBackup();
 		}
 		return { imported: candidates.length, skipped: rows.filter((item) => item.selected).length - candidates.length };
@@ -292,6 +305,7 @@ class FinanceStoreFacade {
 		this.applyLinkedTransactionEffect(t, -1);
 		this.transactionsStore.deleteTransaction(id);
 		this.lastDeletedTransaction = t;
+		this.invalidateNetWorthSnapshots(t.date);
 		this.scheduleAutomaticBackup();
 		return true;
 	}
@@ -303,6 +317,7 @@ class FinanceStoreFacade {
 		this.applyTransactionEffect(transaction, 1);
 		this.applyLinkedTransactionEffect(transaction, 1);
 		this.lastDeletedTransaction = null;
+		this.invalidateNetWorthSnapshots(transaction.date);
 		this.scheduleAutomaticBackup();
 		return true;
 	}
@@ -343,6 +358,7 @@ class FinanceStoreFacade {
 		this.applyTransactionEffect(t, -1);
 		this.applyTransactionEffect(parsed.data, 1);
 		this.transactionsStore.updateTransaction(id, parsed.data);
+		this.invalidateNetWorthSnapshots(t.date < parsed.data.date ? t.date : parsed.data.date);
 		this.scheduleAutomaticBackup();
 		return true;
 	}
@@ -359,6 +375,7 @@ class FinanceStoreFacade {
 			...parsed.data,
 			initialBalance: parsed.data.initialBalance ?? parsed.data.balance
 		});
+		this.invalidateNetWorthSnapshots(parsed.data.createdAt ?? new Date().toISOString());
 		this.scheduleAutomaticBackup();
 		return true;
 	}
@@ -528,7 +545,9 @@ class FinanceStoreFacade {
 		const parsed = RecurringTransactionSchema.safeParse(rt);
 		const validAccounts = this.accounts.some((account) => account.id === rt.accountId) && (!rt.toAccountId || this.accounts.some((account) => account.id === rt.toAccountId));
 		const validCategory = rt.type === 'transfer' || this.categories.some((category) => category.id === rt.categoryId && category.type === rt.type);
-		if (!parsed.success || !validAccounts || !validCategory || (rt.type === 'transfer' && (!rt.toAccountId || rt.toAccountId === rt.accountId))) { toastStore.add('El movimiento recurrente no es válido.', 'error'); return false; }
+		const linkedDebt = rt.debtId ? this.debts.find((debt) => debt.id === rt.debtId) : undefined;
+		const validDebtLink = !rt.debtId || (rt.type === 'expense' && linkedDebt?.type === 'i_owe' && linkedDebt.status === 'pending');
+		if (!parsed.success || !validAccounts || !validCategory || !validDebtLink || (rt.type === 'transfer' && (!rt.toAccountId || rt.toAccountId === rt.accountId))) { toastStore.add('El movimiento recurrente no es válido.', 'error'); return false; }
 		this.recurringStore.addRecurringTransaction(parsed.data); this.scheduleAutomaticBackup(); return true;
 	}
 	deleteRecurringTransaction(id: string) { this.recurringStore.deleteRecurringTransaction(id); this.scheduleAutomaticBackup(); }
@@ -540,6 +559,10 @@ class FinanceStoreFacade {
 		this.recurringTransactions.forEach(rt => {
 			let nextDate = dateFromDateOnly(rt.nextDate);
 			while (nextDate <= now && pending.length < maxPending) {
+				const sourceCurrency = this.accounts.find((account) => account.id === rt.accountId)?.currency?.toUpperCase();
+				const sourceRate = !rt.debtId ? undefined : sourceCurrency && sourceCurrency !== this.settings.baseCurrency
+					? this.settings.exchangeRates[sourceCurrency]
+					: 1;
 				pending.push({
 					rtId: rt.id,
 					tx: {
@@ -551,6 +574,7 @@ class FinanceStoreFacade {
 						toAccountId: rt.toAccountId,
 						toAmount: rt.toAmount,
 						debtId: rt.debtId,
+						linkedAmount: sourceRate ? Math.round(rt.amount * sourceRate * 100) / 100 : undefined,
 						note: rt.note,
 						type: rt.type
 					}
@@ -596,8 +620,8 @@ class FinanceStoreFacade {
 		this.debtsStore.addDebt(parsed.data); this.scheduleAutomaticBackup(); return true;
 	}
 	deleteDebt(id: string): boolean {
-		if (this.transactions.some((transaction) => transaction.debtId === id)) {
-			toastStore.add('No se puede eliminar una deuda con abonos registrados.', 'error');
+		if (this.transactions.some((transaction) => transaction.debtId === id) || this.recurringTransactions.some((recurring) => recurring.debtId === id)) {
+			toastStore.add('No se puede eliminar una deuda con abonos o pagos recurrentes vinculados.', 'error');
 			return false;
 		}
 		this.debtsStore.deleteDebt(id);
@@ -1007,7 +1031,10 @@ class FinanceStoreFacade {
 			this.budgetsStore.data = backup.budgets;
 			this.debtsStore.data = backup.debts;
 			this.recurringStore.data = backup.recurringTransactions;
-			if (backup.settings) this.settingsStore.data = backup.settings;
+			// Un respaldo puede incluir historia corregida: sus cierres se regeneran
+			// con los datos restaurados en lugar de conservar cifras potencialmente viejas.
+			if (backup.settings) this.settingsStore.data = { ...backup.settings, netWorthSnapshots: [] };
+			else this.settingsStore.updateSettings({ netWorthSnapshots: [] });
 
 			this.migrateInitialBalances();
 			this.recalculateBalances();

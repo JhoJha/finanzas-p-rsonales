@@ -49,6 +49,10 @@ export function parseAndValidateBackup(json: string): FinanceBackup {
 		if (!accountIds.has(recurring.accountId) || (recurring.type === 'transfer' && (!recurring.toAccountId || !accountIds.has(recurring.toAccountId) || recurring.toAccountId === recurring.accountId)) || (recurring.type !== 'transfer' && !categoryIds.has(recurring.categoryId))) {
 			throw new Error('El backup contiene una transacción recurrente inválida.');
 		}
+		if (recurring.debtId) {
+			const debt = backup.debts.find((item) => item.id === recurring.debtId);
+			if (!debt || recurring.type !== 'expense' || debt.type !== 'i_owe') throw new Error('El backup contiene un recurrente vinculado a una deuda inválida.');
+		}
 	}
 	for (const debt of backup.debts) {
 		if (debt.accountId && !accountIds.has(debt.accountId)) throw new Error('El backup contiene una deuda con cuenta inexistente.');

@@ -9,6 +9,15 @@ export class MissingExchangeRateError extends Error {
 	}
 }
 
+/** Identifica configuraciones heredadas que no pueden producir reportes fiables. */
+export function getMissingExchangeRateCurrencies(accounts: Pick<Account, 'currency'>[], settings: CurrencySettings): string[] {
+	const baseCurrency = settings.baseCurrency.toUpperCase();
+	return [...new Set(accounts
+		.map((account) => account.currency?.trim().toUpperCase())
+		.filter((currency): currency is string => Boolean(currency) && currency !== baseCurrency)
+		.filter((currency) => !Number.isFinite(settings.exchangeRates[currency]) || settings.exchangeRates[currency] <= 0))];
+}
+
 /** Devuelve cuántas unidades de la moneda base representa una unidad de `currency`. */
 export function getExchangeRateToBase(currency: string | undefined, settings: CurrencySettings): number {
 	const from = (currency || settings.baseCurrency).toUpperCase();
