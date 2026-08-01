@@ -8,6 +8,7 @@ export class SettingsStore {
 	budgetAlertThreshold: 80,
 	onboardingCompleted: false,
 	savedFilters: [],
+	importRules: [],
 		profile: {
 			name: '',
 			avatar: '👋',

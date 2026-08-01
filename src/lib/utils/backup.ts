@@ -22,9 +22,14 @@ export function parseAndValidateBackup(json: string): FinanceBackup {
 	];
 	const accountIds = new Set(backup.accounts.map((account) => account.id));
 	const categoryIds = new Set(categories.map((category) => category.id));
+	const transactionIds = new Set(backup.transactions.map((transaction) => transaction.id));
+	const goalIds = new Set(backup.goals.map((goal) => goal.id));
+	const debtIds = new Set(backup.debts.map((debt) => debt.id));
 
 	if (accountIds.size !== backup.accounts.length) throw new Error('Las cuentas del backup tienen identificadores duplicados.');
 	if (categoryIds.size !== categories.length) throw new Error('Las categorías del backup tienen identificadores duplicados.');
+	if (transactionIds.size !== backup.transactions.length) throw new Error('El backup tiene movimientos con identificadores duplicados.');
+	if (goalIds.size !== backup.goals.length || debtIds.size !== backup.debts.length) throw new Error('El backup tiene metas o deudas con identificadores duplicados.');
 
 	for (const transaction of backup.transactions) {
 		if (!accountIds.has(transaction.accountId) || (transaction.type !== 'transfer' && !categoryIds.has(transaction.categoryId))) {
@@ -33,6 +38,8 @@ export function parseAndValidateBackup(json: string): FinanceBackup {
 		if (transaction.type === 'transfer' && (!transaction.toAccountId || !accountIds.has(transaction.toAccountId) || transaction.toAccountId === transaction.accountId)) {
 			throw new Error('El backup contiene una transferencia inválida.');
 		}
+		if (transaction.goalId && !goalIds.has(transaction.goalId)) throw new Error('El backup contiene un movimiento con meta inexistente.');
+		if (transaction.debtId && !debtIds.has(transaction.debtId)) throw new Error('El backup contiene un movimiento con deuda inexistente.');
 	}
 
 	for (const budget of backup.budgets) {

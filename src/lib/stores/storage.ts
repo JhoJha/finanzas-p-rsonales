@@ -1,5 +1,18 @@
 import { browser } from '$app/environment';
 
+export const FINANCE_STATE_KEY = 'finances_state_v4';
+
+export interface FinanceStateSnapshot {
+	transactions: unknown[];
+	categories: unknown[];
+	goals: unknown[];
+	accounts: unknown[];
+	budgets: unknown[];
+	recurringTransactions: unknown[];
+	debts: unknown[];
+	settings: unknown;
+}
+
 export async function loadFromStorage<T>(key: string, defaultValue: T): Promise<T> {
 	if (!browser) return defaultValue;
 	
@@ -38,4 +51,13 @@ export async function saveToStorage<T>(key: string, value: T): Promise<void> {
 	} catch (e) {
 		console.error(`Error saving ${key} to storage`, e);
 	}
+}
+
+/** Guarda todo el estado financiero en una sola clave de IndexedDB. */
+export async function saveFinanceSnapshot(snapshot: FinanceStateSnapshot): Promise<void> {
+	await saveToStorage(FINANCE_STATE_KEY, snapshot);
+}
+
+export async function loadFinanceSnapshot(): Promise<FinanceStateSnapshot | null> {
+	return loadFromStorage<FinanceStateSnapshot | null>(FINANCE_STATE_KEY, null);
 }

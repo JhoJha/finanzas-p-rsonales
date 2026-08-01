@@ -45,6 +45,11 @@ export const SettingsSchema = z.object({
 		startDate: z.string().optional(),
 		endDate: z.string().optional()
 	})).max(8).default([]),
+	importRules: z.array(z.object({
+		id: EntityId,
+		merchant: z.string().trim().min(1).max(120),
+		categoryId: EntityId
+	})).max(100).default([]),
 	profile: z.object({
 		name: z.string().default(''),
 		avatar: z.string().default('👋'),
@@ -60,6 +65,10 @@ export const TransactionSchema = z.object({
 	categoryId: EntityId,
 	accountId: EntityId,
 	toAccountId: EntityId.optional(),
+	// En una transferencia entre monedas, este es el importe que realmente
+	// recibe la cuenta destino. Si no existe, conserva el comportamiento legado.
+	toAmount: PositiveAmount.optional(),
+	toExchangeRate: z.number().finite().positive().optional(),
 	note: z.string().optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
 	tags: z.array(z.string()).optional(),
@@ -68,7 +77,8 @@ export const TransactionSchema = z.object({
 	exchangeRate: z.number().finite().positive().optional(),
 	baseCurrency: z.string().trim().min(3).max(3).optional(),
 	debtId: EntityId.optional(),
-	goalId: EntityId.optional()
+	goalId: EntityId.optional(),
+	linkedAmount: PositiveAmount.optional()
 });
 
 export const GoalSchema = z.object({
@@ -93,6 +103,7 @@ export const RecurringTransactionSchema = z.object({
 	categoryId: EntityId,
 	accountId: EntityId,
 	toAccountId: EntityId.optional(),
+	toAmount: PositiveAmount.optional(),
 	note: z.string().optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
 	frequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly']),
@@ -128,6 +139,17 @@ export const BackupSchema = z.object({
 	exportedAt: z.string().optional()
 }).passthrough();
 
+export const ImportRowSchema = z.object({
+	id: EntityId,
+	date: z.string().trim().min(1),
+	amount: z.number().finite().refine((amount) => amount !== 0),
+	description: z.string().trim().min(1).max(500),
+	merchant: z.string().trim().min(1).max(120),
+	categoryId: EntityId.optional(),
+	duplicate: z.boolean().default(false),
+	selected: z.boolean().default(true)
+});
+
 export type Category = z.infer<typeof CategorySchema>;
 export type Transaction = z.infer<typeof TransactionSchema>;
 export type Goal = z.infer<typeof GoalSchema>;
@@ -137,6 +159,8 @@ export type RecurringTransaction = z.infer<typeof RecurringTransactionSchema>;
 export type Debt = z.infer<typeof DebtSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type FinanceBackup = z.infer<typeof BackupSchema>;
+export type ImportRule = z.infer<typeof SettingsSchema>['importRules'][number];
+export type ImportRow = z.infer<typeof ImportRowSchema>;
 
 export const defaultCategories: Category[] = [
 	{ id: '1', name: 'Alimentación', icon: 'pizza', color: 'bg-orange-500', type: 'expense' },

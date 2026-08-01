@@ -25,6 +25,9 @@ describe('reglas financieras', () => {
 
 		const income: Transaction = { ...transfer, id: 'income-1', amount: 20, accountId: 'cash', type: 'income', toAccountId: undefined };
 		expect(applyTransactionToAccountBalances(afterTransfer, income)[0].balance).toBe(85);
+
+		const crossCurrency = { ...transfer, id: 'transfer-usd', amount: 75, toAmount: 20 };
+		expect(applyTransactionToAccountBalances(accounts, crossCurrency).map((account) => account.balance)).toEqual([25, 30]);
 	});
 
 	it('conserva la tasa histórica aunque se actualice la configuración', () => {

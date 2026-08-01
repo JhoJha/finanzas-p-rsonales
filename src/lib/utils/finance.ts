@@ -32,7 +32,7 @@ export function getAccountBalanceDeltas(transaction: Transaction, multiplier = 1
 	if (transaction.type === 'expense') add(transaction.accountId, -transaction.amount * multiplier);
 	if (transaction.type === 'transfer' && transaction.toAccountId) {
 		add(transaction.accountId, -transaction.amount * multiplier);
-		add(transaction.toAccountId, transaction.amount * multiplier);
+		add(transaction.toAccountId, (transaction.toAmount ?? transaction.amount) * multiplier);
 	}
 
 	return deltas;

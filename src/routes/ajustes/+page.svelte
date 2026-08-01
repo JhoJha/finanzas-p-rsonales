@@ -47,6 +47,10 @@
 		input.onchange = async (e: any) => {
 			const file = e.target?.files?.[0];
 			if (!file) return;
+			if (file.size > 5 * 1024 * 1024) {
+				toastStore.add('El backup supera el límite de 5 MB.', 'error');
+				return;
+			}
 			const text = await file.text();
 			const preview = financeStore.previewImport(text);
 			if (!preview.valid) {
@@ -116,6 +120,9 @@
 		{/if}
 
 		<div class="flex flex-col gap-3">
+			<a href="/importar" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
+				<div class="flex items-center gap-3"><Upload size={20} style="color: var(--color-primary);" /><span class="font-medium" style="color: var(--color-text);">Importar movimientos CSV</span></div><span style="color: var(--color-text-secondary);">→</span>
+			</a>
 			<a href="/ajustes/perfil" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
 				<div class="flex items-center gap-3">
 					<User size={20} style="color: var(--color-primary);" />

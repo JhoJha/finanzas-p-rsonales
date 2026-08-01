@@ -22,6 +22,10 @@
 	async function handlePhotoUpload(e: any) {
 		const file = e.target.files?.[0];
 		if (!file) return;
+		if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
+			toastStore.add('Usa una imagen de hasta 2 MB.', 'error');
+			return;
+		}
 
 		// Convert to Base64
 		const reader = new FileReader();

@@ -1,4 +1,4 @@
-import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema } from './schema';
+import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, type ImportRow, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema } from './schema';
 import { toastStore } from './toast.svelte';
 import { browser } from '$app/environment';
 
@@ -14,7 +14,7 @@ import { formatCurrency } from './utils/currency';
 import { dateFromDateOnly, formatDateOnly } from './utils/date';
 import { getExchangeRateToBase, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
 import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
-import { loadFromStorage, saveToStorage } from './stores/storage';
+import { loadFromStorage, saveToStorage, loadFinanceSnapshot, saveFinanceSnapshot } from './stores/storage';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -31,6 +31,7 @@ class FinanceStoreFacade {
 	isReady = $state(false);
 	private lastDeletedTransaction: Transaction | null = null;
 	private backupTimer: ReturnType<typeof setTimeout> | undefined;
+	private persistenceQueue: Promise<void> = Promise.resolve();
 
 	constructor() {
 		if (browser) {
@@ -49,6 +50,24 @@ class FinanceStoreFacade {
 			this.recurringStore.init(),
 			this.settingsStore.init()
 		]);
+		// Desde P6, el estado consolidado es la fuente de verdad. Las claves
+		// individuales se conservan solo para migrar instalaciones anteriores.
+		const snapshot = await loadFinanceSnapshot();
+		if (snapshot) {
+			try {
+				const restored = parseAndValidateBackup(JSON.stringify(snapshot));
+				this.accountsStore.data = restored.accounts;
+				this.transactionsStore.data = restored.transactions;
+				this.categoriesStore.data = restored.categories;
+				this.goalsStore.data = restored.goals;
+				this.budgetsStore.data = restored.budgets;
+				this.debtsStore.data = restored.debts;
+				this.recurringStore.data = restored.recurringTransactions;
+				if (restored.settings) this.settingsStore.data = restored.settings;
+			} catch (error) {
+				console.error('Ignoring invalid consolidated finance state', error);
+			}
+		}
 		
 		this.migrateInitialBalances();
 		this.recalculateBalances();
@@ -83,7 +102,7 @@ class FinanceStoreFacade {
 				if (transaction.type === 'expense' && transaction.accountId === account.id) return net - transaction.amount;
 				if (transaction.type === 'transfer') {
 					if (transaction.accountId === account.id) return net - transaction.amount;
-					if (transaction.toAccountId === account.id) return net + transaction.amount;
+					if (transaction.toAccountId === account.id) return net + (transaction.toAmount ?? transaction.amount);
 				}
 				return net;
 			}, 0);
@@ -102,21 +121,42 @@ class FinanceStoreFacade {
 			this.accountsStore.updateBalance(t.accountId, -t.amount * multiplier);
 		} else if (t.type === 'transfer' && t.toAccountId) {
 			this.accountsStore.updateBalance(t.accountId, -t.amount * multiplier);
-			this.accountsStore.updateBalance(t.toAccountId, t.amount * multiplier);
+			this.accountsStore.updateBalance(t.toAccountId, (t.toAmount ?? t.amount) * multiplier);
 		}
 	}
 
 	private snapshotExchangeRate(transaction: Transaction): Transaction {
 		const account = this.accounts.find((item) => item.id === transaction.accountId);
+		const destination = transaction.toAccountId ? this.accounts.find((item) => item.id === transaction.toAccountId) : undefined;
+		const sourceRate = transaction.exchangeRate ?? getExchangeRateToBase(account?.currency, this.settings);
+		const destinationRate = transaction.toExchangeRate ?? getExchangeRateToBase(destination?.currency, this.settings);
 		return {
 			...transaction,
-			exchangeRate: transaction.exchangeRate ?? getExchangeRateToBase(account?.currency, this.settings),
+			exchangeRate: sourceRate,
+			toExchangeRate: destination ? destinationRate : undefined,
+			toAmount: transaction.type === 'transfer' && destination
+				? (transaction.toAmount ?? Math.round((transaction.amount * sourceRate / destinationRate) * 100) / 100)
+				: undefined,
 			baseCurrency: transaction.baseCurrency ?? this.settings.baseCurrency
 		};
 	}
 
+	private persistState() {
+		if (!browser) return;
+		const snapshot = {
+			transactions: $state.snapshot(this.transactionsStore.data), categories: $state.snapshot(this.categoriesStore.data),
+			goals: $state.snapshot(this.goalsStore.data), accounts: $state.snapshot(this.accountsStore.data),
+			budgets: $state.snapshot(this.budgetsStore.data), recurringTransactions: $state.snapshot(this.recurringStore.data),
+			debts: $state.snapshot(this.debtsStore.data), settings: $state.snapshot(this.settingsStore.data)
+		};
+		this.persistenceQueue = this.persistenceQueue
+			.then(() => saveFinanceSnapshot(snapshot))
+			.catch((error) => console.error('Could not persist finance state', error));
+	}
+
 	private scheduleAutomaticBackup() {
 		if (!browser) return;
+		this.persistState();
 		if (this.backupTimer) clearTimeout(this.backupTimer);
 		this.backupTimer = setTimeout(async () => {
 			const snapshot = JSON.parse(this.exportToJSON());
@@ -152,6 +192,33 @@ class FinanceStoreFacade {
 		this.scheduleAutomaticBackup();
 		return true;
 	}
+
+	/** Importa movimientos validados como una única operación de estado. */
+	importTransactions(rows: ImportRow[], accountId: string): { imported: number; skipped: number } {
+		if (!this.accounts.some((account) => account.id === accountId)) throw new Error('Selecciona una cuenta válida.');
+		const existing = new Set(this.transactions.map((transaction) => {
+			const merchant = (transaction.note || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+			return `${transaction.date.slice(0, 10)}|${transaction.amount.toFixed(2)}|${merchant}`;
+		}));
+		const candidates: Transaction[] = [];
+		for (const row of rows.filter((item) => item.selected && !item.duplicate)) {
+			const type = row.amount < 0 ? 'expense' : 'income';
+			const categoryId = row.categoryId ?? this.categories.find((category) => category.type === type && !category.id.startsWith('__'))?.id;
+			if (!categoryId) continue;
+			const date = new Date(row.date);
+			if (Number.isNaN(date.getTime())) continue;
+			const transaction = this.snapshotExchangeRate({ id: crypto.randomUUID(), date: date.toISOString(), amount: Math.abs(row.amount), categoryId, accountId, note: row.description, type });
+			const key = `${transaction.date.slice(0, 10)}|${transaction.amount.toFixed(2)}|${row.merchant}`;
+			if (existing.has(key) || candidates.some((candidate) => `${candidate.date.slice(0, 10)}|${candidate.amount.toFixed(2)}|${(candidate.note || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase()}` === key)) continue;
+			candidates.push(transaction);
+		}
+		if (candidates.length) {
+			this.transactionsStore.data = [...this.transactionsStore.data, ...candidates];
+			this.recalculateBalances();
+			this.scheduleAutomaticBackup();
+		}
+		return { imported: candidates.length, skipped: rows.filter((item) => item.selected).length - candidates.length };
+	}
 	deleteTransaction(id: string): boolean {
 		const t = this.transactions.find(tx => tx.id === id);
 		if (!t) return false;
@@ -177,12 +244,12 @@ class FinanceStoreFacade {
 	private applyLinkedTransactionEffect(transaction: Transaction, multiplier: number) {
 		if (transaction.debtId) {
 			this.debtsStore.updateDebt(transaction.debtId, (debt) => {
-				debt.paidAmount = Math.min(debt.totalAmount, Math.max(0, debt.paidAmount + transaction.amount * multiplier));
+				debt.paidAmount = Math.min(debt.totalAmount, Math.max(0, debt.paidAmount + (transaction.linkedAmount ?? transaction.amount) * multiplier));
 				debt.status = debt.paidAmount === debt.totalAmount ? 'paid' : 'pending';
 			});
 		}
 		if (transaction.goalId) {
-			this.goalsStore.updateGoalProgress(transaction.goalId, transaction.amount * multiplier);
+			this.goalsStore.updateGoalProgress(transaction.goalId, (transaction.linkedAmount ?? transaction.amount) * multiplier);
 			const goal = this.goals.find((item) => item.id === transaction.goalId);
 			if (goal && goal.currentAmount < 0) this.goalsStore.updateGoalProgress(goal.id, -goal.currentAmount);
 		}
@@ -300,15 +367,18 @@ class FinanceStoreFacade {
 	contributeToGoal(goalId: string, amount: number, accountId: string): boolean {
 		const goal = this.goals.find((item) => item.id === goalId);
 		if (!goal || !Number.isFinite(amount) || amount <= 0 || !this.accounts.some((account) => account.id === accountId)) return false;
+		const account = this.accounts.find((item) => item.id === accountId);
+		const accountAmount = amount / getExchangeRateToBase(account?.currency, this.settings);
 		const saved = this.addTransaction({
 			id: crypto.randomUUID(),
 			date: new Date().toISOString(),
-			amount,
+			amount: accountAmount,
 			categoryId: INTERNAL_CATEGORY_SAVINGS,
 			accountId,
 			type: 'expense',
 			goalId,
-			note: `Ahorro: ${goal.name}`
+			note: `Ahorro: ${goal.name}`,
+			linkedAmount: amount
 		});
 		if (!saved) return false;
 		this.goalsStore.updateGoalProgress(goalId, amount);
@@ -471,15 +541,18 @@ class FinanceStoreFacade {
 			if (currentDebt.paidAmount === currentDebt.totalAmount) currentDebt.status = 'paid';
 		});
 
+		const account = this.accounts.find((item) => item.id === accountId);
+		const accountAmount = amount / getExchangeRateToBase(account?.currency, this.settings);
 		const created = this.addTransaction({
 			id: crypto.randomUUID(),
 			date: new Date().toISOString(),
-			amount,
+			amount: accountAmount,
 			categoryId: INTERNAL_CATEGORY_DEBT_PAYMENT,
 			accountId,
 			note: `Abono a deuda: ${debt.contactName}`,
 			type: debt.type === 'i_owe' ? 'expense' : 'income',
-			debtId
+			debtId,
+			linkedAmount: amount
 		});
 		if (!created) {
 			this.debtsStore.updateDebt(debtId, (currentDebt) => {
@@ -741,7 +814,7 @@ class FinanceStoreFacade {
 
 	exportToJSON(): string {
 		return JSON.stringify({
-			version: 3,
+			version: 4,
 			transactions: this.transactions,
 			categories: this.categories,
 			goals: this.goals,
@@ -792,6 +865,8 @@ class FinanceStoreFacade {
 				if (debt.accountId && !accountIds.has(debt.accountId)) throw new Error('El backup contiene una deuda con cuenta inexistente.');
 			}
 
+			// La validación termina antes de mutar la interfaz y el snapshot se
+			// persiste como una sola unidad; no quedan restauraciones parciales.
 			this.accountsStore.data = backup.accounts;
 			this.categoriesStore.data = categories;
 			this.transactionsStore.data = backup.transactions;
@@ -800,15 +875,6 @@ class FinanceStoreFacade {
 			this.debtsStore.data = backup.debts;
 			this.recurringStore.data = backup.recurringTransactions;
 			if (backup.settings) this.settingsStore.data = backup.settings;
-
-			this.accountsStore.save();
-			this.categoriesStore.save();
-			this.transactionsStore.save();
-			this.goalsStore.save();
-			this.budgetsStore.save();
-			this.debtsStore.save();
-			this.recurringStore.save();
-			if (backup.settings) this.settingsStore.save();
 
 			this.migrateInitialBalances();
 			this.recalculateBalances();

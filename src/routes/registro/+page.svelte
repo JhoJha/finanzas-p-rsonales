@@ -12,6 +12,7 @@
 	let type = $state<'expense' | 'income' | 'transfer'>('expense');
 	let accountId = $state(financeStore.accounts[0]?.id || 'default-cash');
 	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
+	let toAmount = $state('');
 	let note = $state('');
 	let txDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD, por defecto hoy
 	let isRecording = $state(false);
@@ -101,6 +102,7 @@
 			categoryId: type === 'transfer' ? 'transfer' : categoryId,
 			accountId,
 			toAccountId: type === 'transfer' ? toAccountId : undefined,
+			toAmount: type === 'transfer' && toAmount ? evaluateMath(toAmount) ?? undefined : undefined,
 			note,
 			type
 		};
@@ -307,6 +309,12 @@
 								<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance)})</option>
 							{/each}
 						</select>
+					</div>
+				{/if}
+				{#if type === 'transfer' && financeStore.accounts.find((account) => account.id === accountId)?.currency !== financeStore.accounts.find((account) => account.id === toAccountId)?.currency}
+					<div>
+						<label class="block text-xs font-medium" style="color: var(--color-text-secondary);" for="transfer-destination-amount">Monto que recibe la cuenta destino (opcional)</label>
+						<input id="transfer-destination-amount" type="number" min="0.01" step="0.01" bind:value={toAmount} placeholder="Se calcula con la tasa configurada" class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
 					</div>
 				{/if}
 			</div>
