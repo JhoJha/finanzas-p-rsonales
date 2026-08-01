@@ -20,6 +20,8 @@
 	let isLocked = $state(false);
 	let lockPin = $state('');
 	let lockError = $state('');
+	const INACTIVITY_LOCK_MS = 5 * 60 * 1000;
+	let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
 
 	$effect(() => {
 		const handleBeforeInstallPrompt = (e: any) => {
@@ -55,6 +57,33 @@
 		lockError = '';
 		isLocked = false;
 	}
+
+	function lockForInactivity() {
+		sessionStorage.removeItem('finances_unlocked');
+		lockPin = '';
+		lockError = '';
+		isLocked = true;
+	}
+
+	function resetInactivityTimer() {
+		if (!financeStore.settings.security || isLocked) return;
+		if (inactivityTimer) clearTimeout(inactivityTimer);
+		inactivityTimer = setTimeout(lockForInactivity, INACTIVITY_LOCK_MS);
+	}
+
+	$effect(() => {
+		if (!financeStore.isReady || !financeStore.settings.security || isLocked) {
+			if (inactivityTimer) clearTimeout(inactivityTimer);
+			return;
+		}
+		const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart'];
+		for (const event of activityEvents) window.addEventListener(event, resetInactivityTimer, { passive: true });
+		resetInactivityTimer();
+		return () => {
+			if (inactivityTimer) clearTimeout(inactivityTimer);
+			for (const event of activityEvents) window.removeEventListener(event, resetInactivityTimer);
+		};
+	});
 
 	// Alerta proactiva de deudas vencidas (una vez por sesión)
 	$effect(() => {

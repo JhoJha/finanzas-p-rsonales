@@ -83,6 +83,7 @@ class FinanceStoreFacade {
 		
 		this.migrateInitialBalances();
 		this.recalculateBalances();
+		this.capturePreviousMonthNetWorth();
 		// Recurring txs are no longer processed automatically, user must approve them
 		
 		this.isReady = true;
@@ -719,6 +720,27 @@ class FinanceStoreFacade {
 
 	getNetWorthHistory(months = 6, now = new Date()) {
 		return buildNetWorthHistory(this.accounts, this.transactions, this.goals, this.debts, this.settings, months, now);
+	}
+
+	/** Fija el cierre del mes anterior con las tasas disponibles en ese momento. */
+	private capturePreviousMonthNetWorth(now = new Date()) {
+		const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
+		const monthKey = `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, '0')}-01`;
+		if (this.settings.netWorthSnapshots.some((snapshot) => snapshot.month === monthKey)) return;
+		const point = buildNetWorthHistory(this.accounts, this.transactions, this.goals, this.debts, this.settings, 1, previousMonth)[0];
+		if (!point) return;
+		this.settingsStore.updateSettings({
+			netWorthSnapshots: [...this.settings.netWorthSnapshots, {
+				month: monthKey,
+				accounts: point.accounts,
+				savings: point.savings,
+				receivables: point.receivables,
+				debts: point.debts,
+				netWorth: point.netWorth,
+				capturedAt: now.toISOString()
+			}].slice(-60)
+		});
+		this.scheduleAutomaticBackup();
 	}
 
 	// === Derived Summaries & Health ===

@@ -6,6 +6,7 @@ export class SettingsStore {
 	baseCurrency: 'PEN',
 	exchangeRates: { 'USD': 3.75, 'EUR': 4.05 },
 	exchangeRatesUpdatedAt: undefined,
+	netWorthSnapshots: [],
 	budgetAlertThreshold: 80,
 	onboardingCompleted: false,
 	savedFilters: [],

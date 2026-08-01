@@ -152,4 +152,14 @@ describe('resiliencia P6.2', () => {
 		expect(parseImportAmount('(35.50)')).toBe(-35.5);
 		expect(parseImportAmount('-35,50')).toBe(-35.5);
 	});
+
+	it('mantiene un cierre mensual aunque cambie la tasa actual', () => {
+		const history = buildNetWorthHistory(
+			[{ id: 'usd', name: 'Dólares', type: 'bank', initialBalance: 10, balance: 10, currency: 'USD', createdAt: '2026-06-01T12:00:00.000Z' }],
+			[], [], [],
+			{ baseCurrency: 'PEN', exchangeRates: { USD: 5 }, netWorthSnapshots: [{ month: '2026-06-01', accounts: 40, savings: 0, receivables: 0, debts: 0, netWorth: 40, capturedAt: '2026-07-01T00:00:00.000Z' }] },
+			1, new Date('2026-06-30T12:00:00.000Z')
+		);
+		expect(history[0].netWorth).toBe(40);
+	});
 });

@@ -7,6 +7,7 @@ export interface MonthlyReview {
 	categoryChanges: CategoryChange[]; debtPaid: number; goalsContributed: number; completedGoals: string[]; subscriptionCount: number; recommendations: string[];
 }
 export interface NetWorthPoint { date: Date; label: string; accounts: number; savings: number; receivables: number; debts: number; netWorth: number; }
+type NetWorthSettings = Pick<Settings, 'baseCurrency' | 'exchangeRates'> & Partial<Pick<Settings, 'netWorthSnapshots'>>;
 
 function monthWindow(date: Date) {
 	const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -61,7 +62,7 @@ export function buildMonthlyReview(transactions: Transaction[], accounts: Accoun
 	return { month: start, income: totalsCurrent.income, expenses: totalsCurrent.expenses, net, savingsRate: totalsCurrent.income ? Math.round((net / totalsCurrent.income) * 100) : 0, incomeChange: percentage(totalsCurrent.income, totalsPrevious.income), expenseChange: percentage(totalsCurrent.expenses, totalsPrevious.expenses), categoryChanges, debtPaid, goalsContributed, completedGoals, subscriptionCount, recommendations };
 }
 
-export function buildNetWorthHistory(accounts: Account[], transactions: Transaction[], goals: Goal[], debts: Debt[], settings: Pick<Settings, 'baseCurrency' | 'exchangeRates'>, months = 6, date = new Date()): NetWorthPoint[] {
+export function buildNetWorthHistory(accounts: Account[], transactions: Transaction[], goals: Goal[], debts: Debt[], settings: NetWorthSettings, months = 6, date = new Date()): NetWorthPoint[] {
 	const firstMonth = new Date(date.getFullYear(), date.getMonth() - months + 1, 1);
 	return Array.from({ length: months }, (_, index) => {
 		const month = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + index, 1);
@@ -87,6 +88,9 @@ export function buildNetWorthHistory(accounts: Account[], transactions: Transact
 			if (debt.type === 'i_owe') result.debts += remaining; else result.receivables += remaining;
 			return result;
 		}, { debts: 0, receivables: 0 });
+		const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}-01`;
+		const snapshot = settings.netWorthSnapshots?.find((item) => item.month === monthKey);
+		if (snapshot) return { date: month, label: month.toLocaleDateString('es-PE', { month: 'short', year: '2-digit' }), accounts: snapshot.accounts, savings: snapshot.savings, receivables: snapshot.receivables, debts: snapshot.debts, netWorth: snapshot.netWorth };
 		return { date: month, label: month.toLocaleDateString('es-PE', { month: 'short', year: '2-digit' }), accounts: accountValue, savings, receivables: position.receivables, debts: position.debts, netWorth: accountValue + savings + position.receivables - position.debts };
 	});
 }

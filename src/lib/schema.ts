@@ -13,6 +13,15 @@ const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe usar el 
 	const date = new Date(year, month - 1, day);
 	return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }, 'La fecha no existe en el calendario.');
+const NetWorthSnapshotSchema = z.object({
+	month: DateOnly,
+	accounts: z.number().finite(),
+	savings: z.number().finite(),
+	receivables: z.number().finite(),
+	debts: z.number().finite(),
+	netWorth: z.number().finite(),
+	capturedAt: IsoDateTime
+});
 
 export const CategorySchema = z.object({
 	id: EntityId,
@@ -41,6 +50,8 @@ export const SettingsSchema = z.object({
 	// Fecha de la última consulta automática. Es opcional para conservar los
 	// respaldos anteriores y permitir una actualización al abrir la aplicación.
 	exchangeRatesUpdatedAt: IsoDateTime.optional(),
+	// Cierres locales para no revalorizar meses ya cerrados con la tasa actual.
+	netWorthSnapshots: z.array(NetWorthSnapshotSchema).max(60).default([]),
 	budgetAlertThreshold: z.number().int().min(50).max(100).default(80),
 	security: z.object({
 		pinSalt: z.string().min(1),
