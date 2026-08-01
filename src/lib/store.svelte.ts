@@ -492,8 +492,6 @@ export class FinanceStoreFacade {
 			linkedAmount: amount
 		});
 		if (!saved) return false;
-		this.goalsStore.updateGoalProgress(goalId, amount);
-		this.scheduleAutomaticBackup();
 		return true;
 	}
 

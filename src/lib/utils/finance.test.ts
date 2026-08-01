@@ -215,4 +215,20 @@ describe('resiliencia P6.2/P6.3', () => {
 		expect(store.restoreLastDeletedTransaction()).toBe(true);
 		expect(store.debts[0].paidAmount).toBe(100);
 	});
+
+	it('aplica un aporte a meta una sola vez y lo revierte al eliminarlo', () => {
+		const store = new FinanceStoreFacade();
+		const internal = store as unknown as { accountsStore: { data: Account[] } };
+		internal.accountsStore.data = [{ id: 'cash', name: 'Efectivo', type: 'cash', initialBalance: 500, balance: 500, currency: 'PEN' }];
+		expect(store.addGoal({ id: 'goal', name: 'Emergencia', targetAmount: 1_000, currentAmount: 0 })).toBe(true);
+
+		expect(store.contributeToGoal('goal', 100, 'cash')).toBe(true);
+		expect(store.goals[0].currentAmount).toBe(100);
+		const transactionId = store.transactions[0].id;
+
+		expect(store.deleteTransaction(transactionId)).toBe(true);
+		expect(store.goals[0].currentAmount).toBe(0);
+		expect(store.restoreLastDeletedTransaction()).toBe(true);
+		expect(store.goals[0].currentAmount).toBe(100);
+	});
 });
