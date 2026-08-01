@@ -1,5 +1,5 @@
 import { type Budget, BudgetSchema } from '../schema';
-import { loadFromStorage, saveToStorage } from './storage';
+import { loadFromStorage } from './storage';
 
 export class BudgetsStore {
 	data = $state<Budget[]>([]);
@@ -24,6 +24,6 @@ export class BudgetsStore {
 	}
 
 	save() {
-		void saveToStorage('finances_budgets', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy budgets state', error));
+		// Solo lectura para migrar instalaciones anteriores. FinanceRepository persiste el snapshot.
 	}
 }

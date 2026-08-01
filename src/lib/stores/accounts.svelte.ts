@@ -1,5 +1,5 @@
 import { type Account, AccountSchema } from '../schema';
-import { loadFromStorage, saveToStorage } from './storage';
+import { loadFromStorage } from './storage';
 
 export class AccountsStore {
 	data = $state<Account[]>([{ id: 'default-cash', name: 'Efectivo General', type: 'cash', balance: 0, color: 'bg-green-500' }]);
@@ -43,6 +43,6 @@ export class AccountsStore {
 	}
 	
 	save() {
-		void saveToStorage('finances_accounts', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy accounts state', error));
+		// Solo lectura para migrar instalaciones anteriores. FinanceRepository persiste el snapshot.
 	}
 }

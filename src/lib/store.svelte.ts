@@ -14,12 +14,18 @@ import { formatCurrency } from './utils/currency';
 import { dateFromDateOnly, formatDateOnly } from './utils/date';
 import { getExchangeRateToBase, getMissingExchangeRateCurrencies, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
 import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
-import { loadFromStorage, saveToStorage, loadFinanceSnapshot, saveFinanceSnapshot } from './stores/storage';
+import { loadFromStorage, saveToStorage } from './stores/storage';
 import { calculateCashForecast, detectSubscriptions } from './utils/forecast';
 import { buildMonthlyReview, buildNetWorthHistory, invalidateNetWorthSnapshotsFrom } from './utils/insights';
 import { fetchExchangeRatesToBase, shouldRefreshExchangeRates } from './utils/exchange-rates';
+import { CURRENT_FINANCE_STATE_VERSION, FinanceRepository, type FinanceState } from './repositories/finance.repository';
+import { TransactionService } from './services/transaction.service';
+import { DebtService } from './services/debt.service';
+import { GoalService } from './services/goal.service';
+import { RecurringService } from './services/recurring.service';
+import { ReportsService, type ReportPeriod } from './services/reports.service';
 
-export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
+export type Period = ReportPeriod;
 export type ExchangeRateRefreshResult =
 	| { status: 'updated'; currencies: string[] }
 	| { status: 'not-needed' | 'up-to-date' | 'unavailable' }
@@ -35,6 +41,7 @@ export class FinanceStoreFacade {
 	private debtsStore = new DebtsStore();
 	private recurringStore = new RecurringStore();
 	private settingsStore = new SettingsStore();
+	private repository = new FinanceRepository();
 
 	isReady = $state(false);
 	persistenceStatus = $state<PersistenceStatus>('saved');
@@ -62,23 +69,13 @@ export class FinanceStoreFacade {
 			this.recurringStore.init(),
 			this.settingsStore.init()
 		]);
-		// Desde P6, el estado consolidado es la fuente de verdad. Las claves
-		// individuales se conservan solo para migrar instalaciones anteriores.
-		const snapshot = await loadFinanceSnapshot();
-		if (snapshot) {
-			try {
-				const restored = parseAndValidateBackup(JSON.stringify(snapshot));
-				this.accountsStore.data = restored.accounts;
-				this.transactionsStore.data = restored.transactions;
-				this.categoriesStore.data = restored.categories;
-				this.goalsStore.data = restored.goals;
-				this.budgetsStore.data = restored.budgets;
-				this.debtsStore.data = restored.debts;
-				this.recurringStore.data = restored.recurringTransactions;
-				if (restored.settings) this.settingsStore.data = restored.settings;
-			} catch (error) {
-				console.error('Ignoring invalid consolidated finance state', error);
-			}
+		// Las claves individuales solo se leen para migrar instalaciones anteriores.
+		try {
+			const result = await this.repository.load(this.persistenceState(4));
+			this.replaceState(result.state);
+			if (result.migrated) this.persistState();
+		} catch (error) {
+			console.error('Ignoring invalid consolidated finance state', error);
 		}
 		
 		this.migrateInitialBalances();
@@ -92,13 +89,8 @@ export class FinanceStoreFacade {
 	}
 
 	recalculateBalances() {
-		this.accountsStore.data.forEach(a => {
-			this.accountsStore.setBalance(a.id, a.initialBalance ?? 0);
-		});
-		
-		this.transactionsStore.data.forEach(t => {
-			this.applyTransactionEffect(t, 1);
-		});
+		this.accountsStore.data = this.accounts.map((account) => ({ ...account, balance: account.initialBalance ?? 0 }));
+		this.transactionsStore.data.forEach((transaction) => this.applyTransactionEffect(transaction, 1));
 	}
 
 	/**
@@ -126,18 +118,11 @@ export class FinanceStoreFacade {
 			migrated = true;
 		});
 
-		if (migrated) this.accountsStore.save();
+		if (migrated) this.persistState();
 	}
 
 	private applyTransactionEffect(t: Transaction, multiplier: number) {
-		if (t.type === 'income') {
-			this.accountsStore.updateBalance(t.accountId, t.amount * multiplier);
-		} else if (t.type === 'expense') {
-			this.accountsStore.updateBalance(t.accountId, -t.amount * multiplier);
-		} else if (t.type === 'transfer' && t.toAccountId) {
-			this.accountsStore.updateBalance(t.accountId, -t.amount * multiplier);
-			this.accountsStore.updateBalance(t.toAccountId, (t.toAmount ?? t.amount) * multiplier);
-		}
+		this.accountsStore.data = TransactionService.applyAccountEffect(this.accounts, t, multiplier);
 	}
 
 	private snapshotExchangeRate(transaction: Transaction): Transaction {
@@ -158,31 +143,47 @@ export class FinanceStoreFacade {
 
 	/** Valida que un movimiento ligado a deuda pueda aplicar su efecto una sola vez. */
 	private canApplyLinkedTransaction(transaction: Transaction): boolean {
-		if (!transaction.debtId) return true;
-		const debt = this.debts.find((item) => item.id === transaction.debtId);
-		const linkedAmount = transaction.linkedAmount ?? transaction.amount;
-		const expectedType = debt?.type === 'i_owe' ? 'expense' : 'income';
-		const remaining = debt ? debt.totalAmount - debt.paidAmount : 0;
-		if (!debt || debt.status !== 'pending' || transaction.type !== expectedType || !Number.isFinite(linkedAmount) || linkedAmount <= 0 || linkedAmount > remaining + 0.000001) {
+		if (!DebtService.canApplyPayment(this.debts, transaction)) {
 			toastStore.add('El abono no es válido para el saldo pendiente de la deuda.', 'error');
 			return false;
 		}
 		return true;
 	}
 
-	private persistState() {
-		if (!browser) return;
-		const snapshot = {
+	private persistenceState(version = CURRENT_FINANCE_STATE_VERSION): FinanceState {
+		return {
+			version,
 			transactions: $state.snapshot(this.transactionsStore.data), categories: $state.snapshot(this.categoriesStore.data),
 			goals: $state.snapshot(this.goalsStore.data), accounts: $state.snapshot(this.accountsStore.data),
 			budgets: $state.snapshot(this.budgetsStore.data), recurringTransactions: $state.snapshot(this.recurringStore.data),
 			debts: $state.snapshot(this.debtsStore.data), settings: $state.snapshot(this.settingsStore.data)
 		};
+	}
+
+	private replaceState(state: FinanceState) {
+		this.accountsStore.data = state.accounts;
+		this.transactionsStore.data = state.transactions;
+		this.categoriesStore.data = state.categories;
+		this.goalsStore.data = state.goals;
+		this.budgetsStore.data = state.budgets;
+		this.debtsStore.data = state.debts;
+		this.recurringStore.data = state.recurringTransactions;
+		this.settingsStore.data = state.settings;
+	}
+
+	/** Hidrata un estado validado, usado por restauración y pruebas de dominio. */
+	hydrateState(state: FinanceState) {
+		this.replaceState(state);
+	}
+
+	private persistState() {
+		if (!browser) return;
+		const snapshot = this.persistenceState();
 		this.persistenceStatus = 'saving';
 		this.persistenceError = undefined;
 		this.persistenceQueue = this.persistenceQueue
 			.catch(() => undefined)
-			.then(() => saveFinanceSnapshot(snapshot))
+			.then(() => this.repository.save(snapshot))
 			.then(() => {
 				this.persistenceStatus = 'saved';
 				this.lastSavedAt = new Date().toISOString();
@@ -339,17 +340,8 @@ export class FinanceStoreFacade {
 	}
 
 	private applyLinkedTransactionEffect(transaction: Transaction, multiplier: number) {
-		if (transaction.debtId) {
-			this.debtsStore.updateDebt(transaction.debtId, (debt) => {
-				debt.paidAmount = Math.min(debt.totalAmount, Math.max(0, debt.paidAmount + (transaction.linkedAmount ?? transaction.amount) * multiplier));
-				debt.status = debt.paidAmount === debt.totalAmount ? 'paid' : 'pending';
-			});
-		}
-		if (transaction.goalId) {
-			this.goalsStore.updateGoalProgress(transaction.goalId, (transaction.linkedAmount ?? transaction.amount) * multiplier);
-			const goal = this.goals.find((item) => item.id === transaction.goalId);
-			if (goal && goal.currentAmount < 0) this.goalsStore.updateGoalProgress(goal.id, -goal.currentAmount);
-		}
+		this.debtsStore.data = DebtService.applyPayment(this.debts, transaction, multiplier);
+		this.goalsStore.data = GoalService.applyContribution(this.goals, transaction, multiplier);
 	}
 	updateTransaction(id: string, data: Partial<Transaction>): boolean {
 		const t = this.transactions.find(tx => tx.id === id);
@@ -504,54 +496,11 @@ export class FinanceStoreFacade {
 	deleteBudget(id: string) { this.budgetsStore.deleteBudget(id); this.scheduleAutomaticBackup(); }
 
 	getBudgetProgress(identifier: string) {
-		const budget = this.budgets.find((item) => item.id === identifier)
-			?? this.budgets.find((item) => item.categoryId === identifier && item.period === 'monthly');
-		if (!budget) return null;
-
-		const now = new Date();
-		const startDate = budget.period === 'weekly'
-			? new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7))
-			: new Date(now.getFullYear(), now.getMonth(), 1);
-		const endDate = budget.period === 'weekly'
-			? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 6, 23, 59, 59, 999)
-			: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-		const previousStart = budget.period === 'weekly'
-			? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() - 7)
-			: new Date(now.getFullYear(), now.getMonth() - 1, 1);
-		const previousEnd = new Date(startDate.getTime() - 1);
-		const start = startDate.getTime();
-		const end = endDate.getTime();
-
-		const spent = this.transactions
-			.filter(t => t.type === 'expense' && t.categoryId === budget.categoryId && t.timestamp! >= start && t.timestamp! <= end)
-			.reduce((acc, t) => {
-				return acc + this.getTransactionAmountInBase(t);
-			}, 0);
-		const previousSpent = this.transactions
-			.filter(t => t.type === 'expense' && t.categoryId === budget.categoryId && t.timestamp! >= previousStart.getTime() && t.timestamp! <= previousEnd.getTime())
-			.reduce((acc, t) => acc + this.getTransactionAmountInBase(t), 0);
-		const daysLeft = Math.max(0, Math.ceil((end - now.getTime()) / 86400000));
-		const available = budget.amount - spent;
-
-		return {
-			id: budget.id,
-			period: budget.period,
-			budget: budget.amount,
-			spent,
-			previousSpent,
-			available,
-			daysLeft,
-			dailyAvailable: daysLeft > 0 ? Math.max(0, available) / daysLeft : Math.max(0, available),
-			percent: Math.round((spent / budget.amount) * 100),
-			alertThreshold: budget.alertThreshold ?? this.settings.budgetAlertThreshold
-		};
+		return ReportsService.budgetProgress(this.persistenceState(), identifier, (transaction) => this.getTransactionAmountInBase(transaction));
 	}
 
 	getBudgetAlerts() {
-		return this.budgets.flatMap((budget) => {
-			const progress = this.getBudgetProgress(budget.id);
-			return progress && progress.percent >= progress.alertThreshold ? [{ budget, progress }] : [];
-		});
+		return ReportsService.budgetAlerts(this.persistenceState(), (transaction) => this.getTransactionAmountInBase(transaction));
 	}
 
 	// === Recurring ===
@@ -594,10 +543,7 @@ export class FinanceStoreFacade {
 					}
 				});
 				
-				if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
-				else if (rt.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-				else if (rt.frequency === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
-				else if (rt.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+				nextDate = RecurringService.nextDateAfter(nextDate, rt.frequency);
 			}
 		});
 		return pending;
@@ -611,17 +557,10 @@ export class FinanceStoreFacade {
 			if (!this.addTransaction(tx)) return;
 		}
 		
-		let nextDate = dateFromDateOnly(tx.date);
-		if (rt.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
-		else if (rt.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-		else if (rt.frequency === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
-		else if (rt.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
-		
-		// Ensure we don't go backwards if multiple are pending
-		const currentNext = dateFromDateOnly(rt.nextDate);
-		if (nextDate > currentNext) {
+		const nextDate = RecurringService.advanceDate(rt.nextDate, tx.date, rt.frequency);
+		if (nextDate !== rt.nextDate) {
 			this.recurringStore.updateRecurringTransactions(
-				this.recurringTransactions.map(r => r.id === rtId ? { ...r, nextDate: formatDateOnly(nextDate) } : r)
+				this.recurringTransactions.map(r => r.id === rtId ? { ...r, nextDate } : r)
 			);
 		}
 		this.scheduleAutomaticBackup();
@@ -772,83 +711,15 @@ export class FinanceStoreFacade {
 
 	// === Derived Summaries & Health ===
 	get summary() {
-		// Calculate converted totals
-		let income = 0;
-		let expenses = 0;
-		
-		this.transactions.forEach(t => {
-			const convertedAmount = this.getTransactionAmountInBase(t);
-			if (t.type === 'income') income += convertedAmount;
-			else if (t.type === 'expense') expenses += convertedAmount;
-		});
-
-		const savings = this.goals.reduce((acc, g) => acc + g.currentAmount, 0); // Goals usually in base currency for now
-		
-		const balance = this.accounts.reduce((acc, a) => acc + a.balance * getExchangeRateToBase(a.currency, this.settings), 0);
-
-		return { income, expenses, balance, savings };
+		return ReportsService.summary(this.persistenceState(), (transaction) => this.getTransactionAmountInBase(transaction));
 	}
 
 	getTransactionsByPeriod(period: Period): Transaction[] {
-		const now = Date.now();
-		let start = 0;
-
-		if (typeof period === 'string' && period.includes('-')) {
-			const [year, month] = period.split('-').map(Number);
-			const startOfMonth = new Date(year, month - 1, 1).getTime();
-			const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).getTime();
-			return this.transactions.filter((t) => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
-		}
-
-		const d = new Date();
-		switch (period) {
-			case 'today':
-				d.setHours(0, 0, 0, 0);
-				start = d.getTime();
-				break;
-			case 'week':
-				d.setDate(d.getDate() - 7);
-				start = d.getTime();
-				break;
-			case 'month':
-				d.setMonth(d.getMonth() - 1);
-				start = d.getTime();
-				break;
-			case 'year':
-				d.setFullYear(d.getFullYear() - 1);
-				start = d.getTime();
-				break;
-			default:
-				return [...this.transactions];
-		}
-
-		return this.transactions.filter((t) => t.timestamp! >= start && t.timestamp! <= now);
+		return ReportsService.transactionsByPeriod(this.transactions, period);
 	}
 
 	getExpensesByCategory(period: Period = 'all') {
-		const filtered = period === 'all' ? this.transactions : this.getTransactionsByPeriod(period);
-		const expenses = filtered.filter((t) => t.type === 'expense' && t.categoryId !== 'transfer');
-
-		const grouped: Record<string, number> = {};
-		expenses.forEach((t) => {
-			const convertedAmount = this.getTransactionAmountInBase(t);
-			grouped[t.categoryId] = (grouped[t.categoryId] || 0) + convertedAmount;
-		});
-
-		const total = Object.values(grouped).reduce((a, b) => a + b, 0) || 1;
-
-		return Object.entries(grouped)
-			.map(([id, amount]) => {
-				const cat = this.categories.find((c) => c.id === id);
-				return {
-					id,
-					name: cat?.name || 'Otro',
-					amount,
-					color: cat?.color?.replace('bg-', '') || 'gray-500',
-					percent: Math.round((amount / total) * 100)
-				};
-			})
-			.sort((a, b) => b.amount - a.amount);
+		return ReportsService.expensesByCategory(this.persistenceState(), (transaction) => this.getTransactionAmountInBase(transaction), period);
 	}
 
 	getWeeklyEvolution() {

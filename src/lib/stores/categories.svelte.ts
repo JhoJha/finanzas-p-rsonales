@@ -1,5 +1,5 @@
 import { type Category, CategorySchema, defaultCategories, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS } from '../schema';
-import { loadFromStorage, saveToStorage } from './storage';
+import { loadFromStorage } from './storage';
 
 export class CategoriesStore {
 	data = $state<Category[]>(defaultCategories);
@@ -28,6 +28,6 @@ export class CategoriesStore {
 	}
 
 	save() {
-		void saveToStorage('finances_categories', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy categories state', error));
+		// Solo lectura para migrar instalaciones anteriores. FinanceRepository persiste el snapshot.
 	}
 }

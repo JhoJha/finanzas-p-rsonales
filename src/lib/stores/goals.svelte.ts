@@ -1,5 +1,5 @@
 import { type Goal, GoalSchema } from '../schema';
-import { loadFromStorage, saveToStorage } from './storage';
+import { loadFromStorage } from './storage';
 
 export class GoalsStore {
 	data = $state<Goal[]>([]);
@@ -32,6 +32,6 @@ export class GoalsStore {
 	}
 
 	save() {
-		void saveToStorage('finances_goals', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy goals state', error));
+		// Solo lectura para migrar instalaciones anteriores. FinanceRepository persiste el snapshot.
 	}
 }

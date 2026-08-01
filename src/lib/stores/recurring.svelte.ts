@@ -1,5 +1,5 @@
 import { type RecurringTransaction, RecurringTransactionSchema } from '../schema';
-import { loadFromStorage, saveToStorage } from './storage';
+import { loadFromStorage } from './storage';
 
 export class RecurringStore {
 	data = $state<RecurringTransaction[]>([]);
@@ -29,6 +29,6 @@ export class RecurringStore {
 	}
 
 	save() {
-		void saveToStorage('finances_recurring', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy recurring state', error));
+		// Solo lectura para migrar instalaciones anteriores. FinanceRepository persiste el snapshot.
 	}
 }

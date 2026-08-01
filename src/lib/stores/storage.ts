@@ -3,6 +3,7 @@ import { browser } from '$app/environment';
 export const FINANCE_STATE_KEY = 'finances_state_v4';
 
 export interface FinanceStateSnapshot {
+	version?: number;
 	transactions: unknown[];
 	categories: unknown[];
 	goals: unknown[];
@@ -11,6 +12,7 @@ export interface FinanceStateSnapshot {
 	recurringTransactions: unknown[];
 	debts: unknown[];
 	settings: unknown;
+	exportedAt?: string;
 }
 
 export async function loadFromStorage<T>(key: string, defaultValue: T): Promise<T> {

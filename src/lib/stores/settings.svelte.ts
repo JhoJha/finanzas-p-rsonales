@@ -1,5 +1,5 @@
 import { type Settings, SettingsSchema } from '../schema';
-import { loadFromStorage, saveToStorage } from './storage';
+import { loadFromStorage } from './storage';
 
 export class SettingsStore {
 	data = $state<Settings>({
@@ -36,6 +36,6 @@ export class SettingsStore {
 	}
 
 	save() {
-		void saveToStorage('finances_settings', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy settings state', error));
+		// Solo lectura para migrar instalaciones anteriores. FinanceRepository persiste el snapshot.
 	}
 }

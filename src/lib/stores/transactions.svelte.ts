@@ -1,5 +1,5 @@
 import { type Transaction, TransactionSchema } from '../schema';
-import { loadFromStorage, saveToStorage } from './storage';
+import { loadFromStorage } from './storage';
 
 export class TransactionsStore {
 	data = $state<Transaction[]>([]);
@@ -43,6 +43,6 @@ export class TransactionsStore {
 	}
 
 	save() {
-		void saveToStorage('finances_transactions', $state.snapshot(this.data)).catch((error) => console.warn('Could not save legacy transactions state', error));
+		// Solo lectura para migrar instalaciones anteriores. FinanceRepository persiste el snapshot.
 	}
 }

@@ -17,6 +17,7 @@
 
 	let deferredPrompt = $state<any>(null);
 	let showInstallBanner = $state(false);
+	let isIosInstallable = $state(false);
 	let isLocked = $state(false);
 	let lockPin = $state('');
 	let lockError = $state('');
@@ -27,6 +28,13 @@
 	let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
 
 	$effect(() => {
+		const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
+			|| (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1);
+		const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+			|| Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+		isIosInstallable = isIos && !isStandalone;
+		if (isIosInstallable && sessionStorage.getItem('ios_install_dismissed') !== '1') showInstallBanner = true;
+
 		const handleBeforeInstallPrompt = (e: any) => {
 			e.preventDefault();
 			deferredPrompt = e;
@@ -162,34 +170,41 @@
 		link.click();
 		URL.revokeObjectURL(url);
 	}
+
+	function dismissInstallBanner() {
+		showInstallBanner = false;
+		if (isIosInstallable) sessionStorage.setItem('ios_install_dismissed', '1');
+	}
 </script>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<title>Gestor Inteligente</title>
 	<meta name="theme-color" content={currentThemeColor} />
+	<meta name="application-name" content="Gestor Inteligente" />
 </svelte:head>
 
-<div class="flex h-screen flex-col bg-bg text-text">
+<a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+<div class="flex min-h-[100dvh] flex-col bg-bg text-text">
 	<ToastProvider />
 	{#if financeStore.persistenceStatus === 'error' && !isLocked}
 		<div class="fixed left-4 right-4 top-3 z-[60] rounded-2xl p-3 shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-danger); color: var(--color-text);">
 			<p class="text-sm font-semibold">No se guardaron los últimos cambios.</p>
 			<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">{financeStore.persistenceError} Exporta un respaldo antes de cerrar o recargar.</p>
-			<button onclick={exportEmergencyBackup} class="mt-2 rounded-lg px-3 py-2 text-xs font-bold text-white" style="background-color: var(--color-danger);">Exportar respaldo ahora</button>
+			<button onclick={exportEmergencyBackup} class="mt-2 min-h-11 rounded-lg px-3 py-2 text-xs font-bold text-white" style="background-color: var(--color-danger);">Exportar respaldo ahora</button>
 		</div>
 	{:else if financeStore.persistenceStatus === 'saving'}
 		<div class="fixed right-4 top-3 z-[60] rounded-full px-3 py-1 text-xs shadow" style="background-color: var(--color-surface); color: var(--color-text-secondary); border: 1px solid var(--color-border);">Guardando cambios…</div>
 	{/if}
 	{#if isLocked}
-		<main class="flex flex-1 items-center justify-center p-6">
+		<main id="main-content" tabindex="-1" class="flex flex-1 items-center justify-center p-6">
 			<div class="w-full max-w-sm rounded-3xl p-6 text-center shadow-lg" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 				<div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style="background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);">🔒</div>
 				<h1 class="text-xl font-bold" style="color: var(--color-text);">Gestor bloqueado</h1>
 				<p class="mt-2 text-sm" style="color: var(--color-text-secondary);">Ingresa tu PIN para acceder a tus finanzas.</p>
 				<label for="app-unlock-pin" class="sr-only">PIN</label>
-				<input id="app-unlock-pin" type="password" inputmode="numeric" maxlength="8" bind:value={lockPin} onkeydown={(event) => { if (event.key === 'Enter') unlock(); }} class="mt-5 w-full rounded-xl p-3 text-center text-lg tracking-[0.5em] outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
-				{#if lockError}<p class="mt-2 text-xs" style="color: var(--color-danger);">{lockError}</p>{/if}
+				<input id="app-unlock-pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8" bind:value={lockPin} onkeydown={(event) => { if (event.key === 'Enter') unlock(); }} aria-describedby={lockError ? 'app-unlock-error' : undefined} class="mt-5 w-full rounded-xl p-3 text-center text-lg tracking-[0.5em] outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+				{#if lockError}<p id="app-unlock-error" role="alert" class="mt-2 text-xs" style="color: var(--color-danger);">{lockError}</p>{/if}
 				<button onclick={unlock} class="mt-4 w-full rounded-xl py-3 font-bold text-white" style="background-color: var(--color-primary);">Desbloquear</button>
 			</div>
 		</main>
@@ -205,17 +220,18 @@
 		<!-- Botón de Ajustes -->
 		<a
 			href="/ajustes"
-			class="absolute left-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"
+			class="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"
 			aria-label="Ajustes"
 		>
 			<Settings size={20} />
 		</a>
-		<a href="/buscar" aria-label="Búsqueda global" class="absolute left-14 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"><Search size={18} /></a>
+		<a href="/buscar" aria-label="Búsqueda global" class="absolute left-14 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"><Search size={20} /></a>
 
 		<button
 			onclick={() => { vibrate(15); themeStore.toggleDark(); }}
-			class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"
+			class="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-90"
 			aria-label="Cambiar modo"
+			aria-pressed={isDark}
 		>
 			{#if isDark}
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
@@ -236,15 +252,19 @@
 					<p class="text-xs text-text-secondary">Acceso rápido y sin conexión</p>
 				</div>
 			</div>
-			<div class="flex gap-2">
-				<button onclick={() => (showInstallBanner = false)} class="px-2 text-xs font-medium text-text-secondary">Quizás luego</button>
-				<button onclick={installPWA} class="rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm bg-primary">Instalar</button>
+			<div class="flex items-center gap-2">
+				{#if isIosInstallable && !deferredPrompt}
+					<p class="max-w-28 text-right text-xs font-medium text-text-secondary">En Safari: Compartir y «Añadir a inicio».</p>
+				{:else}
+					<button onclick={installPWA} class="min-h-11 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm bg-primary">Instalar</button>
+				{/if}
+				<button onclick={dismissInstallBanner} class="min-h-11 px-2 text-xs font-medium text-text-secondary" aria-label="Cerrar aviso de instalación">Ahora no</button>
 			</div>
 		</div>
 	{/if}
 
 	<!-- Main content (con margen negativo para solaparse con el header) -->
-	<main class="relative -mt-12 flex-1 overflow-y-auto px-4 pb-32">
+	<main id="main-content" tabindex="-1" class="relative -mt-12 flex-1 overflow-y-auto px-4 pb-36">
 		{#if isReportBlocked}
 			<div class="mx-auto max-w-lg rounded-2xl p-5 text-center shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-warning);">
 				<h2 class="text-lg font-bold" style="color: var(--color-text);">Falta configurar una tasa de cambio</h2>
@@ -276,12 +296,14 @@
 
 	<!-- Bottom Navigation -->
 	<nav
-		class="fixed bottom-4 left-4 right-4 z-50 flex items-center justify-between rounded-3xl px-6 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.1)] backdrop-blur-2xl transition-all border"
+		aria-label="NavegaciÃ³n principal"
+		class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-4 z-50 flex items-center justify-between rounded-3xl px-3 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.1)] backdrop-blur-2xl transition-all border"
 		style="background-color: {isDark ? 'rgba(30, 41, 59, 0.75)' : 'rgba(255, 255, 255, 0.8)'}; border-color: {isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'};"
 	>
 		<a
 			href="/"
-			class="flex flex-col items-center p-2 text-xs transition-colors"
+			aria-current={page.url.pathname === '/' ? 'page' : undefined}
+			class="flex min-h-11 min-w-11 flex-col items-center justify-center p-2 text-xs transition-colors"
 			style="color: {page.url.pathname === '/' ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
 		>
 			<Home size={24} />
@@ -290,14 +312,15 @@
 		<a
 			href="/registro"
 			onclick={() => vibrate(15)}
-			class="flex flex-col items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
-			style="width: 50px; height: 50px;"
+			aria-label="Registrar movimiento"
+			class="flex h-14 w-14 flex-col items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
 		>
 			<Plus size={28} />
 		</a>
 		<a
 			href="/ahorro"
-			class="flex flex-col items-center p-2 text-xs transition-colors"
+			aria-current={page.url.pathname === '/ahorro' ? 'page' : undefined}
+			class="flex min-h-11 min-w-11 flex-col items-center justify-center p-2 text-xs transition-colors"
 			style="color: {page.url.pathname === '/ahorro' ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
 		>
 			<Target size={24} />
@@ -305,7 +328,8 @@
 		</a>
 		<a
 			href="/analisis"
-			class="flex flex-col items-center p-2 text-xs transition-colors"
+			aria-current={page.url.pathname === '/analisis' ? 'page' : undefined}
+			class="flex min-h-11 min-w-11 flex-col items-center justify-center p-2 text-xs transition-colors"
 			style="color: {page.url.pathname === '/analisis' ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
 		>
 			<TrendingUp size={24} />

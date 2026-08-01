@@ -152,6 +152,7 @@
 html {
 	scroll-behavior: smooth;
 	-webkit-tap-highlight-color: transparent;
+	-webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -159,6 +160,39 @@ body {
 	color: var(--color-text);
 	font-family: 'Outfit', system-ui, -apple-system, sans-serif;
 	transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* NavegaciÃ³n por teclado y controles tÃ¡ctiles: visibles sin alterar el diseÃ±o. */
+:focus-visible {
+	outline: 3px solid var(--color-accent);
+	outline-offset: 3px;
+}
+
+.skip-link {
+	position: fixed;
+	left: 1rem;
+	top: 1rem;
+	z-index: 100;
+	transform: translateY(-160%);
+	border-radius: 0.75rem;
+	background: var(--color-surface);
+	color: var(--color-text);
+	padding: 0.75rem 1rem;
+	font-weight: 700;
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.skip-link:focus {
+	transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
 }
 
 /* Scrollbar delgada */

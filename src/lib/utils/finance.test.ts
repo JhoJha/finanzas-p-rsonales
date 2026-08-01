@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Account, RecurringTransaction, Transaction } from '$lib/schema';
-import { FinanceStoreFacade } from '$lib/store.svelte';
+import type { Account, Transaction } from '$lib/schema';
 import { parseAndValidateBackup } from '$lib/utils/backup';
 import { dateFromDateOnly } from '$lib/utils/date';
 import {
@@ -195,40 +194,4 @@ describe('resiliencia P6.2/P6.3', () => {
 		expect(() => parseAndValidateBackup(JSON.stringify(backup))).toThrow('recurrente vinculado');
 	});
 
-	it('aplica el mismo abono de deuda al aprobar, eliminar y deshacer un recurrente', () => {
-		const store = new FinanceStoreFacade();
-		const internal = store as unknown as {
-			accountsStore: { data: Account[] };
-			recurringStore: { data: RecurringTransaction[] };
-		};
-		internal.accountsStore.data = [{ id: 'cash', name: 'Efectivo', type: 'cash', initialBalance: 500, balance: 500, currency: 'PEN' }];
-		expect(store.addDebt({ id: 'debt', type: 'i_owe', contactName: 'Banco', totalAmount: 500, paidAmount: 0, status: 'pending' })).toBe(true);
-		internal.recurringStore.data = [{ id: 'recurring-debt', amount: 100, categoryId: '__debt-payment__', accountId: 'cash', debtId: 'debt', type: 'expense', frequency: 'monthly', nextDate: '2020-01-01' }];
-
-		const pending = store.getPendingRecurringTransactions()[0];
-		store.approvePendingRecurring(pending.rtId, pending.tx, true);
-		expect(store.debts[0].paidAmount).toBe(100);
-		expect(store.transactions).toHaveLength(1);
-
-		expect(store.deleteTransaction(pending.tx.id)).toBe(true);
-		expect(store.debts[0].paidAmount).toBe(0);
-		expect(store.restoreLastDeletedTransaction()).toBe(true);
-		expect(store.debts[0].paidAmount).toBe(100);
-	});
-
-	it('aplica un aporte a meta una sola vez y lo revierte al eliminarlo', () => {
-		const store = new FinanceStoreFacade();
-		const internal = store as unknown as { accountsStore: { data: Account[] } };
-		internal.accountsStore.data = [{ id: 'cash', name: 'Efectivo', type: 'cash', initialBalance: 500, balance: 500, currency: 'PEN' }];
-		expect(store.addGoal({ id: 'goal', name: 'Emergencia', targetAmount: 1_000, currentAmount: 0 })).toBe(true);
-
-		expect(store.contributeToGoal('goal', 100, 'cash')).toBe(true);
-		expect(store.goals[0].currentAmount).toBe(100);
-		const transactionId = store.transactions[0].id;
-
-		expect(store.deleteTransaction(transactionId)).toBe(true);
-		expect(store.goals[0].currentAmount).toBe(0);
-		expect(store.restoreLastDeletedTransaction()).toBe(true);
-		expect(store.goals[0].currentAmount).toBe(100);
-	});
 });

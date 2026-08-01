@@ -73,6 +73,7 @@ test('importa un CSV después de mostrar una vista previa', async ({ page }) => 
 	await expect(page.getByText('Supermercado', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Importar 1 movimientos' }).click();
 	await expect(page.getByText('Importados 1 movimientos.', { exact: true })).toBeVisible();
+	await page.waitForTimeout(700);
 
 	await page.goto('/');
 	await expect(page.getByText('Supermercado', { exact: true })).toBeVisible();
