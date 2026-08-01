@@ -13,6 +13,10 @@
 	let editCategoryId = $state<string>('');
 	let editType = $state<'income'|'expense'|'transfer'>('expense');
 	let editDate = $state<string>(''); // YYYY-MM-DD
+	let editAccountId = $state<string>('');
+	let editToAccountId = $state<string>('');
+	let canUndoDelete = $state(false);
+	let undoTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function getCategoryColor(categoryId: string): string {
 		const cat = financeStore.categories.find((c) => c.id === categoryId);
@@ -30,10 +34,21 @@
 
 	function confirmDelete(id: string) {
 		if (confirm('¿Eliminar esta transacción?')) {
-			financeStore.deleteTransaction(id);
+			if (!financeStore.deleteTransaction(id)) return;
+			canUndoDelete = true;
+			if (undoTimer) clearTimeout(undoTimer);
+			undoTimer = setTimeout(() => (canUndoDelete = false), 7000);
 			vibrate([10, 30, 10]);
 			toastStore.add('Transacción eliminada', 'error');
 		}
+	}
+
+	function undoDelete() {
+		if (!financeStore.restoreLastDeletedTransaction()) return;
+		if (undoTimer) clearTimeout(undoTimer);
+		canUndoDelete = false;
+		vibrate(15);
+		toastStore.add('Transacción restaurada.', 'success');
 	}
 
 	function startEdit(t: Transaction) {
@@ -42,6 +57,8 @@
 		editNote = t.note || '';
 		editCategoryId = t.categoryId;
 		editType = t.type as 'income' | 'expense' | 'transfer';
+		editAccountId = t.accountId;
+		editToAccountId = t.toAccountId || '';
 		// Convertir ISO a YYYY-MM-DD para el input date
 		editDate = new Date(t.date).toISOString().split('T')[0];
 	}
@@ -56,6 +73,8 @@
 				amount: editAmount,
 				note: editNote,
 				categoryId: editCategoryId,
+				accountId: editAccountId,
+				toAccountId: editType === 'transfer' ? editToAccountId : undefined,
 				date: newDate
 			});
 			if (!updated) return;
@@ -109,6 +128,12 @@
 	</div>
 {:else}
 	<div class="space-y-6">
+		{#if canUndoDelete}
+			<div class="sticky top-2 z-40 flex items-center justify-between gap-3 rounded-xl p-3 shadow-lg" style="background-color: var(--color-primary); color: white;">
+				<span class="text-sm font-medium">Movimiento eliminado</span>
+				<button onclick={undoDelete} class="rounded-lg bg-white/20 px-3 py-1.5 text-sm font-bold hover:bg-white/30">Deshacer</button>
+			</div>
+		{/if}
 		{#each groupedTransactions as group}
 			<div class="relative">
 				<div class="sticky top-0 z-30 mb-3 flex items-center justify-between rounded-xl px-4 py-2 shadow-sm backdrop-blur-md transition-all" style="background-color: color-mix(in srgb, var(--color-surface) 80%, transparent); border: 1px solid var(--color-border);">
@@ -147,6 +172,28 @@
 						{/each}
 					</select>
 					</div>
+
+					<select
+						bind:value={editAccountId}
+						class="w-full rounded-xl px-3 py-2 text-sm outline-none"
+						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+					>
+						{#each financeStore.accounts as account}
+							<option value={account.id}>Cuenta: {account.name}</option>
+						{/each}
+					</select>
+
+					{#if editType === 'transfer'}
+						<select
+							bind:value={editToAccountId}
+							class="w-full rounded-xl px-3 py-2 text-sm outline-none"
+							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
+						>
+							{#each financeStore.accounts.filter((account) => account.id !== editAccountId) as account}
+								<option value={account.id}>Hacia: {account.name}</option>
+							{/each}
+						</select>
+					{/if}
 
 					<input
 						type="text"
@@ -212,6 +259,7 @@
 						
 						<!-- Acciones -->
 						<div class="flex flex-col gap-1 ml-1">
+							{#if !t.debtId && !t.goalId}
 							<button
 								onclick={() => startEdit(t)}
 								class="flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-gray-200 hover:text-gray-800 active:scale-90"
@@ -220,6 +268,7 @@
 							>
 								<Pencil size={13} />
 							</button>
+							{/if}
 							<button
 								onclick={() => confirmDelete(t.id)}
 								class="flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-red-100 hover:text-red-600 active:scale-90"

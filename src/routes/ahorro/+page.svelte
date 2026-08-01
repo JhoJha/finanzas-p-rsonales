@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
-	import { GoalSchema, INTERNAL_CATEGORY_SAVINGS } from '$lib/schema';
+	import { GoalSchema } from '$lib/schema';
 	import { dateFromDateOnly } from '$lib/utils/date';
 	import { Plus, Target, CheckCircle2, Trash2, PiggyBank, X, Calendar } from '@lucide/svelte';
 
@@ -65,19 +65,13 @@
 		if (!abonarGoalId || !abonarAmount || isNaN(parseFloat(abonarAmount))) return;
 
 		const amount = parseFloat(abonarAmount);
-		financeStore.updateGoalProgress(abonarGoalId, amount);
+		if (!financeStore.contributeToGoal(abonarGoalId, amount, abonarAccountId)) {
+			toastStore.add('No se pudo registrar el aporte a la meta.', 'error');
+			return;
+		}
 
 		// Registrar como gasto desde la cuenta elegida con categoría interna de ahorro
 		const goalName = financeStore.goals.find((g) => g.id === abonarGoalId)?.name;
-		financeStore.addTransaction({
-			id: crypto.randomUUID(),
-			date: new Date().toISOString(),
-			amount,
-			categoryId: INTERNAL_CATEGORY_SAVINGS,
-			accountId: abonarAccountId,
-			type: 'expense',
-			note: `Ahorro: ${goalName}`
-		});
 
 		abonarGoalId = null;
 		abonarAmount = '';

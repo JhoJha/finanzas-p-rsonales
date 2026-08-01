@@ -1,24 +1,41 @@
 import { financeStore } from '$lib/store.svelte';
 
+function csvCell(value: string | number): string {
+	return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+/** Exportación apta para Excel que conserva la tasa usada por cada movimiento. */
 export function exportTransactionsToCSV() {
-    const transactions = financeStore.transactions;
-    const categories = financeStore.categories;
-    const accounts = financeStore.accounts;
+	const headers = [
+		'Fecha',
+		'Cuenta',
+		'Moneda cuenta',
+		'Categoría',
+		'Tipo',
+		'Monto original',
+		'Tasa histórica',
+		'Monto en moneda base',
+		'Nota'
+	];
 
-    const headers = ['Fecha', 'Cuenta', 'Categoría', 'Tipo', 'Monto', 'Nota'];
-    const rows = transactions.map(t => {
-        const d = new Date(t.timestamp || t.date);
-        const dateStr = d.toLocaleDateString('es-PE') + ' ' + d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-        
-        const account = accounts.find(a => a.id === t.accountId)?.name || 'Desconocida';
-        const category = categories.find(c => c.id === t.categoryId)?.name || 'Sin Categoría';
-        const type = t.type === 'income' ? 'Ingreso' : t.type === 'expense' ? 'Gasto' : 'Transferencia';
-        
-        const note = `"${(t.note || '').replace(/"/g, '""')}"`;
-        
-        return [dateStr, `"${account}"`, `"${category}"`, type, t.amount.toString(), note].join(',');
-    });
+	const rows = financeStore.transactions.map((transaction) => {
+		const date = new Date(transaction.timestamp || transaction.date);
+		const account = financeStore.accounts.find((item) => item.id === transaction.accountId);
+		const category = financeStore.categories.find((item) => item.id === transaction.categoryId);
+		const type = transaction.type === 'income' ? 'Ingreso' : transaction.type === 'expense' ? 'Gasto' : 'Transferencia';
 
-    const csvContent = "\uFEFF" + [headers.join(','), ...rows].join('\n'); // Add BOM for Excel UTF-8 support
-    return csvContent;
+		return [
+			date.toLocaleDateString('es-PE') + ' ' + date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+			account?.name || 'Desconocida',
+			account?.currency || financeStore.settings.baseCurrency,
+			category?.name || 'Sin categoría',
+			type,
+			transaction.amount,
+			transaction.exchangeRate ?? '',
+			financeStore.getTransactionAmountInBase(transaction).toFixed(2),
+			transaction.note || ''
+		].map(csvCell).join(',');
+	});
+
+	return '\uFEFF' + [headers.map(csvCell).join(','), ...rows].join('\n');
 }

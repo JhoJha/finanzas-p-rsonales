@@ -1,4 +1,4 @@
-import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema, BackupSchema, defaultCategories } from './schema';
+import { type Category, type Transaction, type Goal, type Account, type Budget, type RecurringTransaction, type Debt, type Settings, INTERNAL_CATEGORY_DEBT_PAYMENT, INTERNAL_CATEGORY_SAVINGS, TransactionSchema } from './schema';
 import { toastStore } from './toast.svelte';
 import { browser } from '$app/environment';
 
@@ -10,8 +10,11 @@ import { BudgetsStore } from './stores/budgets.svelte';
 import { DebtsStore } from './stores/debts.svelte';
 import { RecurringStore } from './stores/recurring.svelte';
 import { SettingsStore } from './stores/settings.svelte';
-import { convertToBaseCurrency, formatCurrency } from './utils/currency';
+import { formatCurrency } from './utils/currency';
 import { dateFromDateOnly, formatDateOnly } from './utils/date';
+import { getExchangeRateToBase, transactionAmountInBase } from './utils/finance';
+import { parseAndValidateBackup, previewBackup, type BackupPreview } from './utils/backup';
+import { loadFromStorage, saveToStorage } from './stores/storage';
 
 export type Period = 'all' | 'today' | 'week' | 'month' | 'year' | string;
 
@@ -26,6 +29,8 @@ class FinanceStoreFacade {
 	private settingsStore = new SettingsStore();
 
 	isReady = $state(false);
+	private lastDeletedTransaction: Transaction | null = null;
+	private backupTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor() {
 		if (browser) {
@@ -101,6 +106,30 @@ class FinanceStoreFacade {
 		}
 	}
 
+	private snapshotExchangeRate(transaction: Transaction): Transaction {
+		const account = this.accounts.find((item) => item.id === transaction.accountId);
+		return {
+			...transaction,
+			exchangeRate: transaction.exchangeRate ?? getExchangeRateToBase(account?.currency, this.settings),
+			baseCurrency: transaction.baseCurrency ?? this.settings.baseCurrency
+		};
+	}
+
+	private scheduleAutomaticBackup() {
+		if (!browser) return;
+		if (this.backupTimer) clearTimeout(this.backupTimer);
+		this.backupTimer = setTimeout(async () => {
+			const snapshot = JSON.parse(this.exportToJSON());
+			const history = await loadFromStorage<any[]>('finances_backup_history', []);
+			await saveToStorage('finances_backup_history', [snapshot, ...history].slice(0, 5));
+		}, 500);
+	}
+
+	getTransactionAmountInBase(transaction: Transaction): number {
+		const account = this.accounts.find((item) => item.id === transaction.accountId);
+		return transactionAmountInBase(transaction, account?.currency, this.settings);
+	}
+
 	// === Derived State Accessors ===
 	get categories() { return this.categoriesStore.data; }
 	get transactions() { return this.transactionsStore.data; }
@@ -112,20 +141,66 @@ class FinanceStoreFacade {
 	get settings() { return this.settingsStore.data; }
 
 	// === Transactions ===
-	addTransaction(transaction: Transaction) {
+	addTransaction(transaction: Transaction): boolean {
+		const parsed = TransactionSchema.safeParse(this.snapshotExchangeRate(transaction));
+		if (!parsed.success || !this.accounts.some((account) => account.id === parsed.data.accountId) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some((account) => account.id === parsed.data.toAccountId)))) {
+			toastStore.add('La transacción no es válida.', 'error');
+			return false;
+		}
+		this.transactionsStore.addTransaction(parsed.data);
+		this.applyTransactionEffect(parsed.data, 1);
+		this.scheduleAutomaticBackup();
+		return true;
+	}
+	deleteTransaction(id: string): boolean {
+		const t = this.transactions.find(tx => tx.id === id);
+		if (!t) return false;
+		this.applyTransactionEffect(t, -1);
+		this.applyLinkedTransactionEffect(t, -1);
+		this.transactionsStore.deleteTransaction(id);
+		this.lastDeletedTransaction = t;
+		this.scheduleAutomaticBackup();
+		return true;
+	}
+
+	restoreLastDeletedTransaction(): boolean {
+		if (!this.lastDeletedTransaction || this.transactions.some((transaction) => transaction.id === this.lastDeletedTransaction?.id)) return false;
+		const transaction = this.lastDeletedTransaction;
 		this.transactionsStore.addTransaction(transaction);
 		this.applyTransactionEffect(transaction, 1);
+		this.applyLinkedTransactionEffect(transaction, 1);
+		this.lastDeletedTransaction = null;
+		this.scheduleAutomaticBackup();
+		return true;
 	}
-	deleteTransaction(id: string) {
-		const t = this.transactions.find(tx => tx.id === id);
-		if (t) this.applyTransactionEffect(t, -1);
-		this.transactionsStore.deleteTransaction(id);
+
+	private applyLinkedTransactionEffect(transaction: Transaction, multiplier: number) {
+		if (transaction.debtId) {
+			this.debtsStore.updateDebt(transaction.debtId, (debt) => {
+				debt.paidAmount = Math.min(debt.totalAmount, Math.max(0, debt.paidAmount + transaction.amount * multiplier));
+				debt.status = debt.paidAmount === debt.totalAmount ? 'paid' : 'pending';
+			});
+		}
+		if (transaction.goalId) {
+			this.goalsStore.updateGoalProgress(transaction.goalId, transaction.amount * multiplier);
+			const goal = this.goals.find((item) => item.id === transaction.goalId);
+			if (goal && goal.currentAmount < 0) this.goalsStore.updateGoalProgress(goal.id, -goal.currentAmount);
+		}
 	}
 	updateTransaction(id: string, data: Partial<Transaction>): boolean {
 		const t = this.transactions.find(tx => tx.id === id);
 		if (!t) return false;
 
-		const updated = { ...t, ...data };
+		if (t.debtId || t.goalId) {
+			toastStore.add('Los movimientos vinculados a deudas o metas solo se pueden revertir eliminándolos.', 'info');
+			return false;
+		}
+		const updated = this.snapshotExchangeRate({
+			...t,
+			...data,
+			exchangeRate: data.accountId && data.accountId !== t.accountId ? undefined : t.exchangeRate,
+			baseCurrency: data.accountId && data.accountId !== t.accountId ? undefined : t.baseCurrency
+		});
 		const parsed = TransactionSchema.safeParse(updated);
 		if (!parsed.success || !this.accounts.some(account => account.id === parsed.data.accountId) || (parsed.data.type !== 'transfer' && !this.categories.some(category => category.id === parsed.data.categoryId)) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some(account => account.id === parsed.data.toAccountId)))) {
 			toastStore.add('Los cambios de la transacción no son válidos.', 'error');
@@ -135,6 +210,7 @@ class FinanceStoreFacade {
 		this.applyTransactionEffect(t, -1);
 		this.applyTransactionEffect(parsed.data, 1);
 		this.transactionsStore.updateTransaction(id, parsed.data);
+		this.scheduleAutomaticBackup();
 		return true;
 	}
 
@@ -144,6 +220,7 @@ class FinanceStoreFacade {
 			...account,
 			initialBalance: account.initialBalance ?? account.balance
 		});
+		this.scheduleAutomaticBackup();
 	}
 	deleteAccount(id: string) {
 		const hasTx = this.transactions.some(t => t.accountId === id || t.toAccountId === id);
@@ -162,6 +239,7 @@ class FinanceStoreFacade {
 			return false;
 		}
 		this.accountsStore.removeAccount(id);
+		this.scheduleAutomaticBackup();
 		return true;
 	}
 
@@ -176,6 +254,7 @@ class FinanceStoreFacade {
 			return false;
 		}
 		this.categoriesStore.addCategory(category);
+		this.scheduleAutomaticBackup();
 		return true;
 	}
 
@@ -200,18 +279,46 @@ class FinanceStoreFacade {
 			return false;
 		}
 		this.categoriesStore.removeCategory(id);
+		this.scheduleAutomaticBackup();
 		return true;
 		return true;
 	}
 
 	// === Goals ===
-	addGoal(goal: Goal) { this.goalsStore.addGoal(goal); }
-	deleteGoal(id: string) { this.goalsStore.deleteGoal(id); }
-	updateGoalProgress(id: string, amount: number) { this.goalsStore.updateGoalProgress(id, amount); }
+	addGoal(goal: Goal) { this.goalsStore.addGoal(goal); this.scheduleAutomaticBackup(); }
+	deleteGoal(id: string): boolean {
+		if (this.transactions.some((transaction) => transaction.goalId === id)) {
+			toastStore.add('No se puede eliminar una meta con aportes registrados.', 'error');
+			return false;
+		}
+		this.goalsStore.deleteGoal(id);
+		this.scheduleAutomaticBackup();
+		return true;
+	}
+	updateGoalProgress(id: string, amount: number) { this.goalsStore.updateGoalProgress(id, amount); this.scheduleAutomaticBackup(); }
+
+	contributeToGoal(goalId: string, amount: number, accountId: string): boolean {
+		const goal = this.goals.find((item) => item.id === goalId);
+		if (!goal || !Number.isFinite(amount) || amount <= 0 || !this.accounts.some((account) => account.id === accountId)) return false;
+		const saved = this.addTransaction({
+			id: crypto.randomUUID(),
+			date: new Date().toISOString(),
+			amount,
+			categoryId: INTERNAL_CATEGORY_SAVINGS,
+			accountId,
+			type: 'expense',
+			goalId,
+			note: `Ahorro: ${goal.name}`
+		});
+		if (!saved) return false;
+		this.goalsStore.updateGoalProgress(goalId, amount);
+		this.scheduleAutomaticBackup();
+		return true;
+	}
 
 	// === Budgets ===
-	addBudget(budget: Budget) { this.budgetsStore.addBudget(budget); }
-	deleteBudget(id: string) { this.budgetsStore.deleteBudget(id); }
+	addBudget(budget: Budget) { this.budgetsStore.addBudget(budget); this.scheduleAutomaticBackup(); }
+	deleteBudget(id: string) { this.budgetsStore.deleteBudget(id); this.scheduleAutomaticBackup(); }
 	
 	getBudgetProgress(categoryId: string) {
 		const budget = this.budgets.find(b => b.categoryId === categoryId);
@@ -224,8 +331,7 @@ class FinanceStoreFacade {
 		const spent = this.transactions
 			.filter(t => t.type === 'expense' && t.categoryId === categoryId && t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth)
 			.reduce((acc, t) => {
-				const account = this.accounts.find(a => a.id === t.accountId);
-				return acc + convertToBaseCurrency(t.amount, account?.currency);
+				return acc + this.getTransactionAmountInBase(t);
 			}, 0);
 
 		return {
@@ -236,8 +342,8 @@ class FinanceStoreFacade {
 	}
 
 	// === Recurring ===
-	addRecurringTransaction(rt: RecurringTransaction) { this.recurringStore.addRecurringTransaction(rt); }
-	deleteRecurringTransaction(id: string) { this.recurringStore.deleteRecurringTransaction(id); }
+	addRecurringTransaction(rt: RecurringTransaction) { this.recurringStore.addRecurringTransaction(rt); this.scheduleAutomaticBackup(); }
+	deleteRecurringTransaction(id: string) { this.recurringStore.deleteRecurringTransaction(id); this.scheduleAutomaticBackup(); }
 	
 	getPendingRecurringTransactions() {
 		const now = new Date();
@@ -292,8 +398,16 @@ class FinanceStoreFacade {
 	}
 
 	// === Debts ===
-	addDebt(debt: Debt) { this.debtsStore.addDebt(debt); }
-	deleteDebt(id: string) { this.debtsStore.deleteDebt(id); }
+	addDebt(debt: Debt) { this.debtsStore.addDebt(debt); this.scheduleAutomaticBackup(); }
+	deleteDebt(id: string): boolean {
+		if (this.transactions.some((transaction) => transaction.debtId === id)) {
+			toastStore.add('No se puede eliminar una deuda con abonos registrados.', 'error');
+			return false;
+		}
+		this.debtsStore.deleteDebt(id);
+		this.scheduleAutomaticBackup();
+		return true;
+	}
 	
 	payDebt(debtId: string, amount: number, accountId: string): boolean {
 		const debt = this.debts.find(d => d.id === debtId);
@@ -327,16 +441,24 @@ class FinanceStoreFacade {
 			if (currentDebt.paidAmount === currentDebt.totalAmount) currentDebt.status = 'paid';
 		});
 
-		this.addTransaction({
+		const created = this.addTransaction({
 			id: crypto.randomUUID(),
 			date: new Date().toISOString(),
 			amount,
 			categoryId: INTERNAL_CATEGORY_DEBT_PAYMENT,
 			accountId,
 			note: `Abono a deuda: ${debt.contactName}`,
-			type: debt.type === 'i_owe' ? 'expense' : 'income'
+			type: debt.type === 'i_owe' ? 'expense' : 'income',
+			debtId
 		});
-
+		if (!created) {
+			this.debtsStore.updateDebt(debtId, (currentDebt) => {
+				currentDebt.paidAmount -= amount;
+				currentDebt.status = 'pending';
+			});
+			return false;
+		}
+		this.scheduleAutomaticBackup();
 		return true;
 	}
 	
@@ -357,15 +479,14 @@ class FinanceStoreFacade {
 		let expenses = 0;
 		
 		this.transactions.forEach(t => {
-			const account = this.accounts.find(a => a.id === t.accountId);
-			const convertedAmount = convertToBaseCurrency(t.amount, account?.currency);
+			const convertedAmount = this.getTransactionAmountInBase(t);
 			if (t.type === 'income') income += convertedAmount;
 			else if (t.type === 'expense') expenses += convertedAmount;
 		});
 
 		const savings = this.goals.reduce((acc, g) => acc + g.currentAmount, 0); // Goals usually in base currency for now
 		
-		const balance = this.accounts.reduce((acc, a) => acc + convertToBaseCurrency(a.balance, a.currency), 0);
+		const balance = this.accounts.reduce((acc, a) => acc + a.balance * getExchangeRateToBase(a.currency, this.settings), 0);
 
 		return { income, expenses, balance, savings };
 	}
@@ -412,8 +533,7 @@ class FinanceStoreFacade {
 
 		const grouped: Record<string, number> = {};
 		expenses.forEach((t) => {
-			const account = this.accounts.find(a => a.id === t.accountId);
-			const convertedAmount = convertToBaseCurrency(t.amount, account?.currency);
+			const convertedAmount = this.getTransactionAmountInBase(t);
 			grouped[t.categoryId] = (grouped[t.categoryId] || 0) + convertedAmount;
 		});
 
@@ -446,12 +566,10 @@ class FinanceStoreFacade {
 
 			const dayTx = this.transactions.filter((t) => t.timestamp! >= startOfDay && t.timestamp! <= endOfDay);
 			const expenses = dayTx.filter((t) => t.type === 'expense').reduce((a, t) => {
-				const account = this.accounts.find(acc => acc.id === t.accountId);
-				return a + convertToBaseCurrency(t.amount, account?.currency);
+				return a + this.getTransactionAmountInBase(t);
 			}, 0);
 			const income = dayTx.filter((t) => t.type === 'income').reduce((a, t) => {
-				const account = this.accounts.find(acc => acc.id === t.accountId);
-				return a + convertToBaseCurrency(t.amount, account?.currency);
+				return a + this.getTransactionAmountInBase(t);
 			}, 0);
 
 			const names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -476,12 +594,10 @@ class FinanceStoreFacade {
 			const monthTx = this.transactions.filter((t) => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
 
 			const expenses = monthTx.filter((t) => t.type === 'expense').reduce((a, t) => {
-				const account = this.accounts.find(acc => acc.id === t.accountId);
-				return a + convertToBaseCurrency(t.amount, account?.currency);
+				return a + this.getTransactionAmountInBase(t);
 			}, 0);
 			const income = monthTx.filter((t) => t.type === 'income').reduce((a, t) => {
-				const account = this.accounts.find(acc => acc.id === t.accountId);
-				return a + convertToBaseCurrency(t.amount, account?.currency);
+				return a + this.getTransactionAmountInBase(t);
 			}, 0);
 
 			const names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -510,15 +626,13 @@ class FinanceStoreFacade {
 		const current = this.transactions
 			.filter((t) => t.type === 'expense' && t.timestamp! >= weekStartTs)
 			.reduce((a, t) => {
-				const account = this.accounts.find(acc => acc.id === t.accountId);
-				return a + convertToBaseCurrency(t.amount, account?.currency);
+				return a + this.getTransactionAmountInBase(t);
 			}, 0);
 
 		const previous = this.transactions
 			.filter((t) => t.type === 'expense' && t.timestamp! >= prevStartTs && t.timestamp! < weekStartTs)
 			.reduce((a, t) => {
-				const account = this.accounts.find(acc => acc.id === t.accountId);
-				return a + convertToBaseCurrency(t.amount, account?.currency);
+				return a + this.getTransactionAmountInBase(t);
 			}, 0);
 
 		const diff = current - previous;
@@ -541,12 +655,10 @@ class FinanceStoreFacade {
 		const monthTx = this.transactions.filter(t => t.timestamp! >= startOfMonth && t.timestamp! <= endOfMonth);
 
 		const monthIncome = monthTx.filter(t => t.type === 'income').reduce((a, t) => {
-			const account = this.accounts.find(acc => acc.id === t.accountId);
-			return a + convertToBaseCurrency(t.amount, account?.currency);
+			return a + this.getTransactionAmountInBase(t);
 		}, 0);
 		const monthExpenses = monthTx.filter(t => t.type === 'expense').reduce((a, t) => {
-			const account = this.accounts.find(acc => acc.id === t.accountId);
-			return a + convertToBaseCurrency(t.amount, account?.currency);
+			return a + this.getTransactionAmountInBase(t);
 		}, 0);
 		const monthNet = monthIncome - monthExpenses;
 
@@ -564,7 +676,7 @@ class FinanceStoreFacade {
 
 	exportToJSON(): string {
 		return JSON.stringify({
-			version: 2,
+			version: 3,
 			transactions: this.transactions,
 			categories: this.categories,
 			goals: this.goals,
@@ -577,14 +689,14 @@ class FinanceStoreFacade {
 		}, null, 2);
 	}
 
+	previewImport(json: string): BackupPreview {
+		return previewBackup(json);
+	}
+
 	importFromJSON(json: string): boolean {
 		try {
-			const backup = BackupSchema.parse(JSON.parse(json));
-			const internalCategories = defaultCategories.filter(category => category.id.startsWith('__'));
-			const categories = [
-				...backup.categories.filter(category => !category.id.startsWith('__')),
-				...internalCategories
-			];
+			const backup = parseAndValidateBackup(json);
+			const categories = backup.categories;
 			const accountIds = new Set(backup.accounts.map(account => account.id));
 			const categoryIds = new Set(categories.map(category => category.id));
 
@@ -635,6 +747,7 @@ class FinanceStoreFacade {
 
 			this.migrateInitialBalances();
 			this.recalculateBalances();
+			this.scheduleAutomaticBackup();
 			return true;
 		} catch (e) {
 			console.error('Import failed', e);
@@ -644,6 +757,7 @@ class FinanceStoreFacade {
 	// === Settings ===
 	updateSettings(newData: Partial<Settings>) {
 		this.settingsStore.updateSettings(newData);
+		this.scheduleAutomaticBackup();
 	}
 
 	formatCurrency(amount: number, currencyCode?: string): string {

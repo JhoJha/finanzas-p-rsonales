@@ -47,7 +47,13 @@ export const TransactionSchema = z.object({
 	toAccountId: EntityId.optional(),
 	note: z.string().optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
-	tags: z.array(z.string()).optional()
+	tags: z.array(z.string()).optional(),
+	// Se capturan al crear el movimiento para que los reportes históricos no
+	// cambien cuando el usuario actualiza sus tasas de cambio.
+	exchangeRate: z.number().finite().positive().optional(),
+	baseCurrency: z.string().trim().min(3).max(3).optional(),
+	debtId: EntityId.optional(),
+	goalId: EntityId.optional()
 });
 
 export const GoalSchema = z.object({

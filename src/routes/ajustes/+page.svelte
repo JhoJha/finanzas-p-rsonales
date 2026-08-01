@@ -5,8 +5,12 @@
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
 	import { themeStore, themes, type ThemeId } from '$lib/theme.svelte';
 	import { vibrate } from '$lib/utils/haptics';
+	import type { BackupPreview } from '$lib/utils/backup';
 
 	import { exportTransactionsToCSV } from '$lib/utils/csv';
+
+	let pendingImportText = $state<string | null>(null);
+	let pendingImportPreview = $state<BackupPreview | null>(null);
 
 	function exportData() {
 		const backup = JSON.parse(financeStore.exportToJSON()) as Record<string, unknown>;
@@ -44,6 +48,15 @@
 			const file = e.target?.files?.[0];
 			if (!file) return;
 			const text = await file.text();
+			const preview = financeStore.previewImport(text);
+			if (!preview.valid) {
+				vibrate([50, 50, 50]);
+				toastStore.add(preview.error || 'Archivo inválido o corrupto', 'error');
+				return;
+			}
+			pendingImportText = text;
+			pendingImportPreview = preview;
+			return;
 			try {
 				const backup = JSON.parse(text) as { theme?: unknown };
 				if (!financeStore.importFromJSON(text)) throw new Error('Invalid backup');
@@ -59,6 +72,24 @@
 		};
 		input.click();
 	}
+
+	function restorePreviewedBackup() {
+		if (!pendingImportText) return;
+		try {
+			const backup = JSON.parse(pendingImportText) as { theme?: unknown };
+			if (!financeStore.importFromJSON(pendingImportText)) throw new Error('Invalid backup');
+			if (typeof backup.theme === 'string' && themes.some(theme => theme.id === backup.theme)) {
+				themeStore.setTheme(backup.theme as ThemeId);
+			}
+			pendingImportText = null;
+			pendingImportPreview = null;
+			vibrate([10, 30, 10]);
+			toastStore.add('Datos restaurados correctamente');
+		} catch {
+			vibrate([50, 50, 50]);
+			toastStore.add('No se pudo restaurar el backup', 'error');
+		}
+	}
 </script>
 
 <div class="animate-fade-in-up space-y-6">
@@ -71,6 +102,19 @@
 
 	<div class="mb-6 rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 		<h2 class="mb-4 text-lg font-semibold" style="color: var(--color-text);">Personalización y Administración</h2>
+		{#if pendingImportPreview?.valid && pendingImportPreview.counts}
+			<div class="mb-4 rounded-xl p-3 text-sm" style="background-color: color-mix(in srgb, var(--color-primary) 10%, transparent); border: 1px solid var(--color-primary); color: var(--color-text);">
+				<p class="font-semibold">Vista previa del backup v{pendingImportPreview.version ?? 'anterior'}</p>
+				<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">
+					{pendingImportPreview.counts.transactions} movimientos · {pendingImportPreview.counts.accounts} cuentas · {pendingImportPreview.counts.categories} categorías · {pendingImportPreview.counts.goals} metas · {pendingImportPreview.counts.debts} deudas
+				</p>
+				<div class="mt-3 flex gap-2">
+					<button onclick={() => { pendingImportText = null; pendingImportPreview = null; }} class="flex-1 rounded-lg py-2 text-xs font-semibold" style="background-color: var(--color-bg); color: var(--color-text);">Cancelar</button>
+					<button onclick={restorePreviewedBackup} class="flex-1 rounded-lg py-2 text-xs font-semibold text-white" style="background-color: var(--color-primary);">Restaurar ahora</button>
+				</div>
+			</div>
+		{/if}
+
 		<div class="flex flex-col gap-3">
 			<a href="/ajustes/perfil" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
 				<div class="flex items-center gap-3">

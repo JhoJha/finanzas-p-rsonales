@@ -5,7 +5,6 @@
 	import TransactionHistory from '$lib/components/TransactionHistory.svelte';
 	import { TrendingUp, AlertTriangle, ArrowUp, ArrowDown, Minus } from '@lucide/svelte';
 	import { getColorHex } from '$lib/utils/colors';
-	import { convertToBaseCurrency } from '$lib/utils/currency';
 
 	let selectedPeriod = $state<Period>('all');
 	let searchQuery = $state('');
@@ -52,8 +51,7 @@
 	});
 
 	let summary = $derived(filteredTransactions.reduce((totals, transaction) => {
-		const account = financeStore.accounts.find(account => account.id === transaction.accountId);
-		const amountInBaseCurrency = convertToBaseCurrency(transaction.amount, account?.currency);
+		const amountInBaseCurrency = financeStore.getTransactionAmountInBase(transaction);
 		if (transaction.type === 'income') totals.income += amountInBaseCurrency;
 		if (transaction.type === 'expense') totals.expenses += amountInBaseCurrency;
 		return totals;
