@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
+	import { categoryDisplayName } from '$lib/i18n';
 	import { ArrowLeft, BellRing, CalendarDays, CreditCard, Repeat2, TrendingUp } from '@lucide/svelte';
 
 	let subscriptions = $derived(financeStore.getDetectedSubscriptions());
 	let totalMonthly = $derived(subscriptions.reduce((total, item) => total + item.monthlyCost, 0));
 	let totalAnnual = $derived(subscriptions.reduce((total, item) => total + item.annualCost, 0));
 	function date(value: Date) { return value.toLocaleDateString('es-PE', { day: 'numeric', month: 'short' }); }
-	function categoryName(id: string) { return financeStore.categories.find((category) => category.id === id)?.name || 'Sin categoría'; }
+	function categoryName(id: string) { return categoryDisplayName(financeStore.categories.find((category) => category.id === id), financeStore.settings.locale); }
 </script>
 
 <div class="animate-fade-in-up space-y-5">

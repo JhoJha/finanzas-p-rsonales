@@ -15,4 +15,8 @@ export class RecurringService {
 		const candidate = this.nextDateAfter(dateFromDateOnly(occurrence), frequency);
 		return candidate > dateFromDateOnly(nextDate) ? formatDateOnly(candidate) : nextDate;
 	}
+
+	static nextDateAfterDateOnly(date: string, frequency: RecurringTransaction['frequency']): string {
+		return formatDateOnly(this.nextDateAfter(dateFromDateOnly(date), frequency));
+	}
 }

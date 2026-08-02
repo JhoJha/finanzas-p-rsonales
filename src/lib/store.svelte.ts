@@ -11,7 +11,7 @@ import { DebtsStore } from './stores/debts.svelte';
 import { RecurringStore } from './stores/recurring.svelte';
 import { SettingsStore } from './stores/settings.svelte';
 import { formatCurrency } from './utils/currency';
-import { dateFromDateOnly, formatDateOnly } from './utils/date';
+import { dateFromDateOnly, formatDateOnly, dateTimeFromDateOnly, toDateOnlyInTimeZone, todayInTimeZone } from './utils/date';
 import { getExchangeRateToBase, getMissingExchangeRateCurrencies, projectDebtRepayment, transactionAmountInBase } from './utils/finance';
 import { previewBackup, type BackupPreview } from './utils/backup';
 import { loadFromStorage, saveToStorage } from './stores/storage';
@@ -523,12 +523,12 @@ export class FinanceStoreFacade {
 	deleteRecurringTransaction(id: string) { this.recurringStore.deleteRecurringTransaction(id); this.scheduleAutomaticBackup(); }
 	
 	getPendingRecurringTransactions() {
-		const now = new Date();
+		const today = todayInTimeZone(this.settings.timeZone);
 		const pending: { rtId: string; tx: Transaction }[] = [];
 		const maxPending = 90;
 		this.recurringTransactions.forEach(rt => {
-			let nextDate = dateFromDateOnly(rt.nextDate);
-			while (nextDate <= now && pending.length < maxPending) {
+			let nextDate = rt.nextDate;
+			while (nextDate <= today && pending.length < maxPending) {
 				const sourceCurrency = this.accounts.find((account) => account.id === rt.accountId)?.currency?.toUpperCase();
 				const sourceRate = !rt.debtId ? undefined : sourceCurrency && sourceCurrency !== this.settings.baseCurrency
 					? this.settings.exchangeRates[sourceCurrency]
@@ -537,7 +537,7 @@ export class FinanceStoreFacade {
 					rtId: rt.id,
 					tx: {
 						id: crypto.randomUUID(),
-						date: nextDate.toISOString(),
+						date: dateTimeFromDateOnly(nextDate, this.settings.timeZone),
 						amount: rt.amount,
 						categoryId: rt.categoryId,
 						accountId: rt.accountId,
@@ -550,7 +550,7 @@ export class FinanceStoreFacade {
 					}
 				});
 				
-				nextDate = RecurringService.nextDateAfter(nextDate, rt.frequency);
+				nextDate = RecurringService.nextDateAfterDateOnly(nextDate, rt.frequency);
 			}
 		});
 		return pending;
@@ -564,7 +564,7 @@ export class FinanceStoreFacade {
 			if (!this.addTransaction(tx)) return;
 		}
 		
-		const nextDate = RecurringService.advanceDate(rt.nextDate, tx.date, rt.frequency);
+		const nextDate = RecurringService.advanceDate(rt.nextDate, toDateOnlyInTimeZone(tx.date, this.settings.timeZone), rt.frequency);
 		if (nextDate !== rt.nextDate) {
 			this.recurringStore.updateRecurringTransactions(
 				this.recurringTransactions.map(r => r.id === rtId ? { ...r, nextDate } : r)

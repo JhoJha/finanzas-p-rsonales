@@ -10,6 +10,12 @@ async function createUsdAccount(page: import('@playwright/test').Page) {
 	await expect(page.getByText('Cuenta USD', { exact: true })).toBeVisible();
 }
 
+function dateInTimeZone(timeZone: string): string {
+	const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts();
+	const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+	return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
 test('registra un gasto y lo refleja en el inicio', async ({ page }) => {
 	await page.goto('/registro');
 	await page.getByTestId('transaction-amount').fill('25.50');
@@ -91,7 +97,7 @@ test('vincula un pago recurrente a una deuda pendiente', async ({ page }) => {
 
 	await page.goto('/recurrentes');
 	await page.locator('#a11y-6').fill('100');
-	await page.locator('#a11y-8').fill(new Date().toISOString().slice(0, 10));
+	await page.locator('#a11y-8').fill(dateInTimeZone('America/Lima'));
 	await page.locator('#recurring-debt').selectOption({ index: 1 });
 	await page.locator('#a11y-12').fill('Cuota del banco');
 	await page.getByRole('button', { name: 'Guardar Recurrente' }).click();

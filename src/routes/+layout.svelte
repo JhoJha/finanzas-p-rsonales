@@ -9,6 +9,7 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { vibrate } from '$lib/utils/haptics';
 	import { verifyPin } from '$lib/utils/security';
+	import { todayInTimeZone } from '$lib/utils/date';
 
 	let { children } = $props();
 
@@ -56,6 +57,11 @@
 	$effect(() => {
 		if (!financeStore.isReady) return;
 		isLocked = Boolean(financeStore.settings.security) && sessionStorage.getItem('finances_unlocked') !== '1';
+	});
+
+	$effect(() => {
+		if (!financeStore.isReady) return;
+		document.documentElement.lang = financeStore.settings.locale;
 	});
 
 	async function unlock() {
@@ -136,7 +142,7 @@
 
 	$effect(() => {
 		if (!financeStore.isReady || missingExchangeRateCurrencies.length > 0) return;
-		const alertKey = `budget_alerts_${new Date().toISOString().slice(0, 10)}`;
+		const alertKey = `budget_alerts_${todayInTimeZone(financeStore.settings.timeZone)}`;
 		if (sessionStorage.getItem(alertKey)) return;
 		const alerts = financeStore.getBudgetAlerts();
 		if (alerts.length === 0) return;
@@ -167,7 +173,7 @@
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement('a');
 		link.href = url;
-		link.download = `finanzas_respaldo_urgente_${new Date().toISOString().slice(0, 10)}.json`;
+		link.download = `finanzas_respaldo_urgente_${todayInTimeZone(financeStore.settings.timeZone)}.json`;
 		link.click();
 		URL.revokeObjectURL(url);
 	}

@@ -2,6 +2,7 @@
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
 	import { ArrowLeft, Plus, Trash2 } from '@lucide/svelte';
+	import { categoryDisplayName, translate } from '$lib/i18n';
 
 	let categories = $derived(financeStore.categories.filter(c => !c.id.startsWith('__')));
 	
@@ -65,8 +66,8 @@
 						{cat.icon[0].toUpperCase()}
 					</div>
 					<div>
-						<p class="text-sm font-semibold" style="color: var(--color-text);">{cat.name}</p>
-						<p class="text-xs" style="color: var(--color-text-secondary);">{cat.type === 'income' ? 'Ingreso' : 'Gasto'}</p>
+						<p class="text-sm font-semibold" style="color: var(--color-text);">{categoryDisplayName(cat, financeStore.settings.locale)}</p>
+						<p class="text-xs" style="color: var(--color-text-secondary);">{cat.type === 'income' ? translate('transaction.income', financeStore.settings.locale) : translate('transaction.expense', financeStore.settings.locale)}</p>
 					</div>
 				</div>
 				<button onclick={() => deleteCategory(cat.id)} class="text-red-500 hover:opacity-80">

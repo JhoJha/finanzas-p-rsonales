@@ -6,6 +6,8 @@
 	import { TransactionSchema, type Category } from '$lib/schema';
 	import { Mic, MicOff, Save, Plus, X } from '@lucide/svelte';
 	import { parseSpeech } from '$lib/utils/speechParser';
+	import { categoryDisplayName } from '$lib/i18n';
+	import { dateTimeFromDateOnly, todayInTimeZone } from '$lib/utils/date';
 
 	let amount = $state('');
 	let categoryId = $state('1');
@@ -14,7 +16,7 @@
 	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
 	let toAmount = $state('');
 	let note = $state('');
-	let txDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD, por defecto hoy
+	let txDate = $state(todayInTimeZone(financeStore.settings.timeZone)); // YYYY-MM-DD, por defecto hoy
 	let isRecording = $state(false);
 	let dictationResult = $state('');
 	let selectedAccount = $derived(financeStore.accounts.find((account) => account.id === accountId));
@@ -93,13 +95,9 @@
 			return;
 		}
 
-		// Construir ISO desde la fecha elegida preservando la hora local del dispositivo
-		const [year, month, day] = txDate.split('-').map(Number);
-		const chosenDate = new Date(year, month - 1, day, new Date().getHours(), new Date().getMinutes());
-
 		const newTx = {
 			id: crypto.randomUUID(),
-			date: chosenDate.toISOString(),
+			date: dateTimeFromDateOnly(txDate, financeStore.settings.timeZone),
 			amount: finalAmount,
 			categoryId: type === 'transfer' ? 'transfer' : categoryId,
 			accountId,
@@ -142,7 +140,7 @@
 		amount = '';
 		note = '';
 		dictationResult = '';
-		txDate = new Date().toISOString().split('T')[0];
+		txDate = todayInTimeZone(financeStore.settings.timeZone);
 	}
 
 	function addCustomCategory() {
@@ -335,7 +333,7 @@
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 					>
 						{#each categories.filter(c => !c.id.startsWith('__') && c.type === type) as cat}
-							<option value={cat.id}>{cat.name}</option>
+							<option value={cat.id}>{categoryDisplayName(cat, financeStore.settings.locale)}</option>
 						{/each}
 					</select>
 					<button

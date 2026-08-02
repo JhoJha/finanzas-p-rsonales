@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
+	import { categoryDisplayName } from '$lib/i18n';
 	import { toastStore } from '$lib/toast.svelte';
 	import { Target, Plus, Trash2, TrendingDown } from '@lucide/svelte';
 
@@ -43,7 +44,7 @@
 				<label for="budget-category" class="block text-xs font-medium" style="color: var(--color-text-secondary);">Categoría</label>
 				<select id="budget-category" bind:value={categoryId} class="mt-1 w-full rounded-xl p-3 text-sm outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
 					{#each financeStore.categories.filter((category) => category.type === 'expense' && !category.id.startsWith('__')) as category}
-						<option value={category.id}>{category.name}</option>
+						<option value={category.id}>{categoryDisplayName(category, financeStore.settings.locale)}</option>
 					{/each}
 				</select>
 			</div>
@@ -77,7 +78,7 @@
 			{#if progress && category}
 				<div class="rounded-2xl p-4 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 					<div class="mb-3 flex items-center justify-between gap-3">
-						<div><p class="font-semibold" style="color: var(--color-text);">{category.name}</p><p class="text-xs" style="color: var(--color-text-secondary);">{progress.period === 'weekly' ? 'Esta semana' : 'Este mes'} · alerta al {progress.alertThreshold}%</p></div>
+						<div><p class="font-semibold" style="color: var(--color-text);">{categoryDisplayName(category, financeStore.settings.locale)}</p><p class="text-xs" style="color: var(--color-text-secondary);">{progress.period === 'weekly' ? 'Esta semana' : 'Este mes'} · alerta al {progress.alertThreshold}%</p></div>
 						<button onclick={() => deleteBudget(budget.id)} aria-label="Eliminar presupuesto" class="rounded-full p-2 text-red-500 hover:bg-red-500/10"><Trash2 size={16} /></button>
 					</div>
 					<div class="mb-1 flex justify-between text-xs font-medium"><span style="color: var(--color-text-secondary);">{financeStore.formatCurrency(progress.spent)} gastado</span><span style="color: var(--color-text);">{financeStore.formatCurrency(progress.budget)}</span></div>

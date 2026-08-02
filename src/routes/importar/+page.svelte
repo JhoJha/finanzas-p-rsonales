@@ -4,6 +4,8 @@
 	import { MAX_IMPORT_FILE_BYTES, normalizeMerchant, parseBankDate, parseImportCsvWithDiagnostics } from '$lib/utils/import';
 	import type { ImportRow } from '$lib/schema';
 	import { ArrowLeft, FileUp, Save, Trash2 } from '@lucide/svelte';
+	import { categoryDisplayName } from '$lib/i18n';
+	import { dateTimeFromDateOnly, formatDateOnly } from '$lib/utils/date';
 
 	let input = $state<HTMLInputElement>();
 	let rows = $state<ImportRow[]>([]);
@@ -50,7 +52,7 @@
 		isImporting = true;
 		try {
 			const compatible = selectedRows.filter((row) => parseBankDate(row.date));
-			for (const row of compatible) row.date = parseBankDate(row.date)!.toISOString();
+		for (const row of compatible) row.date = dateTimeFromDateOnly(formatDateOnly(parseBankDate(row.date)!), financeStore.settings.timeZone);
 			const result = financeStore.importTransactions(compatible, selectedAccountId);
 			toastStore.add(`Importados ${result.imported} movimientos${result.skipped ? `; omitidos ${result.skipped} duplicados o inválidos` : ''}.`, 'success');
 			rows = [];
@@ -82,7 +84,7 @@
 			{#each rows as row (row.id)}
 				<div class="rounded-xl p-3 shadow-sm" style="background-color: var(--color-surface); border: 1px solid var(--color-border); opacity: {row.duplicate ? 0.65 : 1};">
 					<div class="flex items-start gap-2"><input type="checkbox" bind:checked={row.selected} disabled={row.duplicate} class="mt-1" /><div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold" style="color: var(--color-text);">{row.description}</p><p class="text-xs" style="color: var(--color-text-secondary);">{row.date} · {financeStore.formatCurrency(Math.abs(row.amount), financeStore.accounts.find((a) => a.id === selectedAccountId)?.currency)}</p></div>{#if row.duplicate}<span class="text-xs text-amber-600">Duplicado</span>{/if}</div>
-					<div class="mt-2 flex gap-2"><select bind:value={row.categoryId} class="min-w-0 flex-1 rounded-lg p-2 text-xs" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"><option value={undefined}>Sin categoría</option>{#each row.amount < 0 ? expenseCategories : incomeCategories as category}<option value={category.id}>{category.name}</option>{/each}</select><button onclick={() => rememberRule(row)} title="Recordar categoría para este comercio" class="rounded-lg px-3 text-xs font-semibold" style="background-color: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary);">Regla</button></div>
+					<div class="mt-2 flex gap-2"><select bind:value={row.categoryId} class="min-w-0 flex-1 rounded-lg p-2 text-xs" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"><option value={undefined}>Sin categoría</option>{#each row.amount < 0 ? expenseCategories : incomeCategories as category}<option value={category.id}>{categoryDisplayName(category, financeStore.settings.locale)}</option>{/each}</select><button onclick={() => rememberRule(row)} title="Recordar categoría para este comercio" class="rounded-lg px-3 text-xs font-semibold" style="background-color: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary);">Regla</button></div>
 				</div>
 			{/each}
 		</div>

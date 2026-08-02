@@ -46,13 +46,13 @@ Los respaldos anteriores siguen siendo aceptados. Un snapshot de versión futura
 - No existe API privada, adaptadores de autenticación/IA/cuotas ni configuración server-side de secretos.
 - El flujo de voz no separa varios movimientos, no ofrece revisión estructurada ni confirmación por lote/deshacer persistente.
 - No hay motor de intenciones, registro de herramientas, auditoría local ni idempotencia para acciones de agente.
-- Los textos de la UI siguen en español y no hay selector de idioma; la base de formato y códigos canónicos sí queda preparada.
+- Las pantallas conservan español como idioma inicial; las categorías, formatos de moneda/fecha, CSV y la preferencia persistente ya soportan `en-US`. La traducción gradual de los demás textos no altera el modelo financiero.
 - Los respaldos actuales no están cifrados ni se sincronizan con Google Drive.
 - Las proyecciones existentes son deterministas, pero aún no se exponen al agente mediante herramientas.
 
 ## Plan por fases y dependencias
 
-1. **Fase 1 (iniciada):** códigos canónicos de categoría, `locale`, `timeZone`, utilidades de dinero/fecha y migración v7. Después, sustituir textos de UI por catálogos `es-PE`/`en-US` y mostrar categorías por código traducible.
+1. **Fase 1 (completada):** códigos canónicos de categoría, `locale`, `timeZone`, utilidades de dinero/fecha, migración v7, selector de región y formatos/categorías traducibles sin cambiar datos existentes.
 2. **Fase 2:** rutas privadas de SvelteKit y contratos/adaptadores para identidad, IA, capacidades y cuotas; configuración server-side documentada en `.env.example`.
 3. **Fase 3:** captura por voz como lote editable, confirmación y deshacer basado en una acción local registrada.
 4. **Fase 4:** orquestador de intenciones y herramientas de solo lectura, simulación, propuesta y ejecución confirmada.

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { financeStore } from '$lib/store.svelte';
 	import { toastStore } from '$lib/toast.svelte';
-	import { Download, Upload, Settings, User } from '@lucide/svelte';
+	import { Download, Upload, Settings, User, Languages } from '@lucide/svelte';
 	import ThemePicker from '$lib/components/ThemePicker.svelte';
 	import { themeStore, themes, type ThemeId } from '$lib/theme.svelte';
 	import { vibrate } from '$lib/utils/haptics';
 	import type { BackupPreview } from '$lib/utils/backup';
 
 	import { exportTransactionsToCSV } from '$lib/utils/csv';
+	import { todayInTimeZone } from '$lib/utils/date';
 
 	let pendingImportText = $state<string | null>(null);
 	let pendingImportPreview = $state<BackupPreview | null>(null);
@@ -20,7 +21,7 @@
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `finanzas_backup_${new Date().toISOString().split('T')[0]}.json`;
+		a.download = `finanzas_backup_${todayInTimeZone(financeStore.settings.timeZone)}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
 		vibrate(20);
@@ -33,7 +34,7 @@
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `finanzas_transacciones_${new Date().toISOString().split('T')[0]}.csv`;
+		a.download = `finanzas_transacciones_${todayInTimeZone(financeStore.settings.timeZone)}.csv`;
 		a.click();
 		URL.revokeObjectURL(url);
 		vibrate(20);
@@ -150,6 +151,10 @@
 					<span class="font-medium" style="color: var(--color-text);">Moneda y Cambio</span>
 				</div>
 				<span style="color: var(--color-text-secondary);">➔</span>
+			</a>
+			<a href="/ajustes/idioma" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
+				<div class="flex items-center gap-3"><Languages size={20} style="color: var(--color-primary);" /><span class="font-medium" style="color: var(--color-text);">Idioma y región</span></div>
+				<span style="color: var(--color-text-secondary);">→</span>
 			</a>
 			<a href="/ajustes/seguridad" class="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-black/5" style="background-color: var(--color-bg);">
 				<div class="flex items-center gap-3"><span class="text-xl">🔒</span><span class="font-medium" style="color: var(--color-text);">Privacidad y bloqueo</span></div>

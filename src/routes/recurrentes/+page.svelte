@@ -3,6 +3,8 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { INTERNAL_CATEGORY_DEBT_PAYMENT } from '$lib/schema';
 	import { Repeat, Plus, Trash2, Check, X } from '@lucide/svelte';
+	import { categoryDisplayName, formatCalendarDate } from '$lib/i18n';
+	import { todayInTimeZone } from '$lib/utils/date';
 
 	let type = $state<'expense' | 'income' | 'transfer'>('expense');
 	let pendingList = $derived(financeStore.getPendingRecurringTransactions());
@@ -12,7 +14,7 @@
 	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
 	let frequency = $state<'daily' | 'weekly' | 'monthly'>('monthly');
 	let note = $state('');
-	let nextDate = $state(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+	let nextDate = $state(todayInTimeZone(financeStore.settings.timeZone)); // YYYY-MM-DD
 	let selectedAccount = $derived(financeStore.accounts.find((account) => account.id === accountId));
 	let debtId = $state('');
 	let payableDebts = $derived(financeStore.debts.filter((debt) => debt.type === 'i_owe' && debt.status === 'pending'));
@@ -56,9 +58,8 @@
 		toastStore.add('Transacción recurrente eliminada', 'info');
 	}
 
-	function formatDate(isoString: string) {
-		const d = new Date(isoString);
-		return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+	function formatDate(value: string) {
+		return formatCalendarDate(value.slice(0, 10), financeStore.settings.locale);
 	}
 </script>
 
@@ -180,7 +181,7 @@
 				style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 			>
 				{#each financeStore.categories.filter(c => c.type === type) as cat}
-					<option value={cat.id}>{cat.name}</option>
+					<option value={cat.id}>{categoryDisplayName(cat, financeStore.settings.locale)}</option>
 				{/each}
 			</select>
 		</div>
@@ -248,7 +249,7 @@
 						</div>
 						<div>
 							<div class="font-medium" style="color: var(--color-text);">
-								{p.tx.note || (p.tx.type === 'transfer' ? 'Transferencia' : category?.name)}
+								{p.tx.note || (p.tx.type === 'transfer' ? 'Transferencia' : categoryDisplayName(category, financeStore.settings.locale))}
 							</div>
 							<div class="text-xs" style="color: var(--color-text-secondary);">
 								Fecha: {formatDate(p.tx.date)}
@@ -305,7 +306,7 @@
 					</div>
 					<div>
 						<div class="font-medium" style="color: var(--color-text);">
-							{rt.note || (rt.type === 'transfer' ? 'Transferencia recurrente' : category?.name)}
+							{rt.note || (rt.type === 'transfer' ? 'Transferencia recurrente' : categoryDisplayName(category, financeStore.settings.locale))}
 						</div>
 						<div class="text-xs" style="color: var(--color-text-secondary);">
 							Próximo: {formatDate(rt.nextDate)} • {rt.frequency === 'daily' ? 'Diario' : rt.frequency === 'weekly' ? 'Semanal' : rt.frequency === 'biweekly' ? 'Quincenal' : 'Mensual'}

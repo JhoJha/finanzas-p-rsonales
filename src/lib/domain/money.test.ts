@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { fromMinorUnits, toMinorUnits } from '$lib/domain/money';
-import { todayInTimeZone } from '$lib/utils/date';
+import { dateTimeFromDateOnly, toDateOnlyInTimeZone, todayInTimeZone } from '$lib/utils/date';
 import { parseSpeech } from '$lib/utils/speechParser';
 import { defaultCategories } from '$lib/schema';
 import { AgentActionSchema } from '$lib/contracts/agent';
+import { categoryDisplayName, formatCalendarDate } from '$lib/i18n';
 
 describe('foundation for canonical financial data', () => {
 	it('converts future agent amounts with the currency precision deterministically', () => {
@@ -14,6 +15,14 @@ describe('foundation for canonical financial data', () => {
 
 	it('creates calendar dates in the configured zone without UTC day drift', () => {
 		expect(todayInTimeZone('America/Lima', new Date('2026-08-02T02:30:00.000Z'))).toBe('2026-08-01');
+		const timestamp = dateTimeFromDateOnly('2026-08-01', 'America/Lima');
+		expect(toDateOnlyInTimeZone(timestamp, 'America/Lima')).toBe('2026-08-01');
+	});
+
+	it('translates known category codes without changing custom category names', () => {
+		expect(categoryDisplayName(defaultCategories[0], 'en-US')).toBe('Food');
+		expect(categoryDisplayName({ name: 'Veterinario' }, 'en-US')).toBe('Veterinario');
+		expect(formatCalendarDate('2026-08-01', 'en-US')).toContain('2026');
 	});
 
 	it('keeps speech classification independent from legacy category IDs', () => {

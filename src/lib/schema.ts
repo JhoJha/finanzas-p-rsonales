@@ -49,10 +49,10 @@ export const AccountSchema = z.object({
 });
 
 export const SettingsSchema = z.object({
-	// Idioma, zona horaria y moneda son dimensiones separadas. Los campos son
-	// opcionales en el esquema para conservar respaldos previos; v7 los completa.
-	locale: z.enum(['es-PE', 'en-US']).optional(),
-	timeZone: z.string().trim().min(1).max(100).optional(),
+	// Los defaults permiten leer respaldos previos sin perder una configuración
+	// estructurada a partir de la versión 7.
+	locale: z.enum(['es-PE', 'en-US']).default('es-PE'),
+	timeZone: z.string().trim().min(1).max(100).default('America/Lima'),
 	baseCurrency: CurrencyCode,
 	exchangeRates: z.record(CurrencyCode, z.number().finite().positive()),
 	// Fecha de la última consulta automática. Es opcional para conservar los

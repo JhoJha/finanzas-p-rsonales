@@ -4,6 +4,8 @@
 	import type { Transaction } from '$lib/schema';
 	import { toastStore } from '$lib/toast.svelte';
 	import { vibrate } from '$lib/utils/haptics';
+	import { categoryDisplayName, formatCalendarDate } from '$lib/i18n';
+	import { dateTimeFromDateOnly, toDateOnlyInTimeZone, todayInTimeZone } from '$lib/utils/date';
 
 	let { transactions = [] as Transaction[] } = $props();
 
@@ -26,7 +28,7 @@
 
 	function getCategoryName(categoryId: string): string {
 		const cat = financeStore.categories.find((c) => c.id === categoryId);
-		return cat?.name || 'Sin categoría';
+		return categoryDisplayName(cat, financeStore.settings.locale);
 	}
 
 	function getTransactionCurrency(transaction: Transaction): string | undefined {
@@ -61,22 +63,18 @@
 		editAccountId = t.accountId;
 		editToAccountId = t.toAccountId || '';
 		// Convertir ISO a YYYY-MM-DD para el input date
-		editDate = new Date(t.date).toISOString().split('T')[0];
+		editDate = toDateOnlyInTimeZone(t.date, financeStore.settings.timeZone);
 	}
 
 	function saveEdit() {
 		if (editingId) {
-			// Reconstruir fecha ISO desde YYYY-MM-DD preservando hora local
-			const [year, month, day] = editDate.split('-').map(Number);
-			const newDate = new Date(year, month - 1, day, 12, 0, 0).toISOString();
-
 			const updated = financeStore.updateTransaction(editingId, {
 				amount: editAmount,
 				note: editNote,
 				categoryId: editCategoryId,
 				accountId: editAccountId,
 				toAccountId: editType === 'transfer' ? editToAccountId : undefined,
-				date: newDate
+				date: dateTimeFromDateOnly(editDate, financeStore.settings.timeZone)
 			});
 			if (!updated) return;
 			vibrate(15);
@@ -90,19 +88,7 @@
 	}
 
 	function formatDate(dateStr: string): string {
-		const d = new Date(dateStr);
-		const hoy = new Date();
-		const ayer = new Date(hoy);
-		ayer.setDate(ayer.getDate() - 1);
-
-		if (d.toDateString() === hoy.toDateString()) return 'Hoy';
-		if (d.toDateString() === ayer.toDateString()) return 'Ayer';
-
-		return d.toLocaleDateString('es-PE', {
-			day: 'numeric',
-			month: 'long',
-			year: 'numeric'
-		});
+		return formatCalendarDate(toDateOnlyInTimeZone(dateStr, financeStore.settings.timeZone), financeStore.settings.locale, { day: 'numeric', month: 'long', year: 'numeric' });
 	}
 
 	let groupedTransactions = $derived.by(() => {
@@ -169,7 +155,7 @@
 						style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 					>
 						{#each financeStore.categories.filter(c => !c.id.startsWith('__') && (c.type === editType || editType === 'transfer')) as cat}
-							<option value={cat.id}>{cat.name}</option>
+							<option value={cat.id}>{categoryDisplayName(cat, financeStore.settings.locale)}</option>
 						{/each}
 					</select>
 					</div>
@@ -210,7 +196,7 @@
 						<input
 							type="date"
 							bind:value={editDate}
-							max={new Date().toISOString().split('T')[0]}
+							max={todayInTimeZone(financeStore.settings.timeZone)}
 							class="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
 							style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 						/>
