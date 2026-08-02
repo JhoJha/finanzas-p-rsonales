@@ -2,7 +2,7 @@ import { defaultCategories, type Account, type Debt, type Goal, type RecurringTr
 import type { FinanceState } from '$lib/repositories/finance.repository';
 
 export const createSettings = (overrides: Partial<Settings> = {}): Settings => ({
-	baseCurrency: 'PEN', exchangeRates: {}, netWorthSnapshots: [], budgetAlertThreshold: 80,
+	locale: 'es-PE', timeZone: 'America/Lima', baseCurrency: 'PEN', exchangeRates: {}, netWorthSnapshots: [], budgetAlertThreshold: 80,
 	onboardingCompleted: false, savedFilters: [], importRules: [], profile: { name: '', avatar: '👋', usePhoto: false },
 	...overrides
 });
@@ -29,5 +29,5 @@ export const createRecurringDebtPayment = (overrides: Partial<RecurringTransacti
 });
 
 export const createFinanceState = (overrides: Partial<FinanceState> = {}): FinanceState => ({
-	version: 6, transactions: [], categories: defaultCategories, goals: [], accounts: [createAccount()], budgets: [], recurringTransactions: [], debts: [], settings: createSettings(), ...overrides
+	version: 7, transactions: [], categories: defaultCategories, goals: [], accounts: [createAccount()], budgets: [], recurringTransactions: [], debts: [], settings: createSettings(), ...overrides
 });

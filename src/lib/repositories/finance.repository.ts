@@ -1,8 +1,10 @@
 import type { Account, Budget, Category, Debt, Goal, RecurringTransaction, Settings, Transaction } from '$lib/schema';
 import { parseAndValidateBackup } from '$lib/utils/backup';
 import { loadFinanceSnapshot, saveFinanceSnapshot, type FinanceStateSnapshot } from '$lib/stores/storage';
+import { categoryCodeForLegacyId } from '$lib/domain/category-codes';
+import { DEFAULT_LOCALE, DEFAULT_TIME_ZONE } from '$lib/i18n';
 
-export const CURRENT_FINANCE_STATE_VERSION = 6;
+export const CURRENT_FINANCE_STATE_VERSION = 7;
 
 export interface FinanceState {
 	version: number;
@@ -50,6 +52,21 @@ export function migrateFinanceState(state: FinanceState): FinanceState {
 	if (migrated.version > CURRENT_FINANCE_STATE_VERSION) throw new FutureFinanceStateError(migrated.version);
 	if (migrated.version < 5) migrated = { ...migrated, version: 5 }; // v4 -> v5: snapshot consolidado
 	if (migrated.version < 6) migrated = { ...migrated, version: 6 }; // v5 -> v6: repositorio único
+	if (migrated.version < 7) {
+		migrated = {
+			...migrated,
+			version: 7,
+			categories: migrated.categories.map((category) => ({
+				...category,
+				code: category.code ?? categoryCodeForLegacyId(category.id)
+			})),
+			settings: {
+				...migrated.settings,
+				locale: migrated.settings.locale ?? DEFAULT_LOCALE,
+				timeZone: migrated.settings.timeZone ?? DEFAULT_TIME_ZONE
+			}
+		};
+	}
 	return migrated;
 }
 

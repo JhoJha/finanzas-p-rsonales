@@ -1,6 +1,14 @@
-import { defaultCategories } from '../schema';
+import { defaultCategories, type Category } from '../schema';
+import { categoryCodeForLegacyId, type CategoryCode } from '$lib/domain/category-codes';
 
-export function parseSpeech(text: string) {
+function categoryIdForCode(categories: Category[], code: CategoryCode, type: 'income' | 'expense'): string {
+	return categories.find((category) => category.code === code && category.type === type)?.id
+		?? categories.find((category) => categoryCodeForLegacyId(category.id) === code && category.type === type)?.id
+		?? categories.find((category) => category.type === type && !category.id.startsWith('__'))?.id
+		?? (type === 'income' ? '6' : '1');
+}
+
+export function parseSpeech(text: string, categories: Category[] = defaultCategories) {
 	const lowerText = text.toLowerCase();
 	
 	// Extraer monto
@@ -8,24 +16,27 @@ export function parseSpeech(text: string) {
 	const amount = matchAmount ? parseFloat(matchAmount[0]) : null;
 
 	// Determinar categoría por palabras clave
-	const keywords: Record<string, string[]> = {
-		'1': ['comida', 'almuerzo', 'desayuno', 'cena', 'restaurante', 'pizza', 'hamburguesa', 'supermercado'], // Alimentación
-		'2': ['pasaje', 'taxi', 'transporte', 'bus', 'gasolina', 'uber', 'tren'], // Transporte
-		'3': ['alquiler', 'luz', 'agua', 'internet', 'casa', 'mantenimiento'], // Vivienda
-		'4': ['colegio', 'universidad', 'curso', 'libro', 'cuaderno', 'pensión'], // Educación
-		'5': ['cine', 'juego', 'salida', 'cerveza', 'fiesta', 'ocio', 'entretenimiento'], // Ocio
+	const keywords: Record<CategoryCode, string[]> = {
+		food: ['comida', 'almuerzo', 'desayuno', 'cena', 'restaurante', 'pizza', 'hamburguesa', 'supermercado'],
+		transport: ['pasaje', 'taxi', 'transporte', 'bus', 'gasolina', 'uber', 'tren'],
+		housing: ['alquiler', 'luz', 'agua', 'internet', 'casa', 'mantenimiento'],
+		education: ['colegio', 'universidad', 'curso', 'libro', 'cuaderno', 'pensión'],
+		entertainment: ['cine', 'juego', 'salida', 'cerveza', 'fiesta', 'ocio', 'entretenimiento'],
+		income: [],
+		debt_payment: [],
+		savings: []
 	};
 
-	let categoryId = '1'; // Default: Alimentación
+	let categoryCode: CategoryCode = 'food';
 	let type: 'income' | 'expense' = 'expense'; // Por detectar gastos más comúnmente en dictado
 
 	if (lowerText.includes('ingresé') || lowerText.includes('gané') || lowerText.includes('sueldo') || lowerText.includes('pago de')) {
 		type = 'income';
-		categoryId = '6'; // Trabajo / Ingresos
+		categoryCode = 'income';
 	} else {
-		for (const [id, words] of Object.entries(keywords)) {
+		for (const [code, words] of Object.entries(keywords) as [CategoryCode, string[]][]) {
 			if (words.some((word) => lowerText.includes(word))) {
-				categoryId = id;
+				categoryCode = code;
 				break;
 			}
 		}
@@ -33,7 +44,8 @@ export function parseSpeech(text: string) {
 
 	return {
 		amount,
-		categoryId,
+		categoryCode,
+		categoryId: categoryIdForCode(categories, categoryCode, type),
 		type,
 		note: text
 	};

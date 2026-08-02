@@ -1,11 +1,12 @@
 import { financeStore } from '$lib/store.svelte';
+import { resolveLocale } from '$lib/i18n';
 
-export function formatCurrency(amount: number, currencyCode?: string): string {
+export function formatCurrency(amount: number, currencyCode?: string, locale?: string): string {
 	// If financeStore is not ready or settings is undefined, fallback to PEN
 	const code = currencyCode || financeStore?.settings?.baseCurrency || 'PEN';
 	
 	try {
-		return new Intl.NumberFormat('es-PE', {
+		return new Intl.NumberFormat(resolveLocale(locale ?? financeStore?.settings?.locale), {
 			style: 'currency',
 			currency: code
 		}).format(amount);

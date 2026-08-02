@@ -181,7 +181,7 @@
 			const transcript = event.results[0][0].transcript;
 			dictationResult = `✓ "${transcript}"`;
 
-			const parsed = parseSpeech(transcript);
+		const parsed = parseSpeech(transcript, financeStore.categories);
 			if (parsed.amount) amount = parsed.amount.toString();
 			categoryId = parsed.categoryId;
 			type = parsed.type;

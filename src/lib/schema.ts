@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CATEGORY_CODES } from '$lib/domain/category-codes';
 
 /** IDs de categorías internas del sistema (no editables por el usuario) */
 export const INTERNAL_CATEGORY_DEBT_PAYMENT = '__debt-payment__';
@@ -25,6 +26,9 @@ const NetWorthSnapshotSchema = z.object({
 
 export const CategorySchema = z.object({
 	id: EntityId,
+	// Código canónico para integraciones y traducciones. Es opcional para aceptar
+	// categorías personalizadas y respaldos creados antes de la versión 7.
+	code: z.enum(CATEGORY_CODES).optional(),
 	name: z.string().trim().min(1),
 	icon: z.string().trim().min(1),
 	color: z.string().trim().min(1),
@@ -45,6 +49,10 @@ export const AccountSchema = z.object({
 });
 
 export const SettingsSchema = z.object({
+	// Idioma, zona horaria y moneda son dimensiones separadas. Los campos son
+	// opcionales en el esquema para conservar respaldos previos; v7 los completa.
+	locale: z.enum(['es-PE', 'en-US']).optional(),
+	timeZone: z.string().trim().min(1).max(100).optional(),
 	baseCurrency: CurrencyCode,
 	exchangeRates: z.record(CurrencyCode, z.number().finite().positive()),
 	// Fecha de la última consulta automática. Es opcional para conservar los
@@ -189,13 +197,13 @@ export type ImportRule = z.infer<typeof SettingsSchema>['importRules'][number];
 export type ImportRow = z.infer<typeof ImportRowSchema>;
 
 export const defaultCategories: Category[] = [
-	{ id: '1', name: 'Alimentación', icon: 'pizza', color: 'bg-orange-500', type: 'expense' },
-	{ id: '2', name: 'Transporte', icon: 'bus', color: 'bg-blue-500', type: 'expense' },
-	{ id: '3', name: 'Vivienda', icon: 'home', color: 'bg-green-500', type: 'expense' },
-	{ id: '4', name: 'Educación', icon: 'graduation-cap', color: 'bg-purple-500', type: 'expense' },
-	{ id: '5', name: 'Ocio', icon: 'gamepad-2', color: 'bg-pink-500', type: 'expense' },
-	{ id: '6', name: 'Trabajo / Ingresos', icon: 'briefcase', color: 'bg-yellow-500', type: 'income' },
+	{ id: '1', code: 'food', name: 'Alimentación', icon: 'pizza', color: 'bg-orange-500', type: 'expense' },
+	{ id: '2', code: 'transport', name: 'Transporte', icon: 'bus', color: 'bg-blue-500', type: 'expense' },
+	{ id: '3', code: 'housing', name: 'Vivienda', icon: 'home', color: 'bg-green-500', type: 'expense' },
+	{ id: '4', code: 'education', name: 'Educación', icon: 'graduation-cap', color: 'bg-purple-500', type: 'expense' },
+	{ id: '5', code: 'entertainment', name: 'Ocio', icon: 'gamepad-2', color: 'bg-pink-500', type: 'expense' },
+	{ id: '6', code: 'income', name: 'Trabajo / Ingresos', icon: 'briefcase', color: 'bg-yellow-500', type: 'income' },
 	// Categorías internas del sistema — no se muestran al usuario en los selectores
-	{ id: INTERNAL_CATEGORY_DEBT_PAYMENT, name: 'Pago de Deuda', icon: 'hand-coins', color: 'bg-amber-500', type: 'expense' },
-	{ id: INTERNAL_CATEGORY_SAVINGS, name: 'Ahorro / Meta', icon: 'piggy-bank', color: 'bg-teal-500', type: 'expense' }
+	{ id: INTERNAL_CATEGORY_DEBT_PAYMENT, code: 'debt_payment', name: 'Pago de Deuda', icon: 'hand-coins', color: 'bg-amber-500', type: 'expense' },
+	{ id: INTERNAL_CATEGORY_SAVINGS, code: 'savings', name: 'Ahorro / Meta', icon: 'piggy-bank', color: 'bg-teal-500', type: 'expense' }
 ];
