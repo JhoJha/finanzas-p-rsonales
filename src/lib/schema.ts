@@ -203,6 +203,7 @@ export const defaultCategories: Category[] = [
 	{ id: '3', code: 'housing', name: 'Vivienda', icon: 'home', color: 'bg-green-500', type: 'expense' },
 	{ id: '4', code: 'education', name: 'Educación', icon: 'graduation-cap', color: 'bg-purple-500', type: 'expense' },
 	{ id: '5', code: 'entertainment', name: 'Ocio', icon: 'gamepad-2', color: 'bg-pink-500', type: 'expense' },
+	{ id: '8', code: 'subscriptions', name: 'Suscripciones', icon: 'repeat-2', color: 'bg-indigo-500', type: 'expense' },
 	{ id: '7', code: 'uncategorized', name: 'Por clasificar', icon: 'circle-help', color: 'bg-slate-500', type: 'expense' },
 	{ id: '6', code: 'income', name: 'Trabajo / Ingresos', icon: 'briefcase', color: 'bg-yellow-500', type: 'income' },
 	// Categorías internas del sistema — no se muestran al usuario en los selectores

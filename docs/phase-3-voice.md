@@ -23,6 +23,13 @@ monto, soporta vocabulario `es-PE` y `en-US`, y usa la categoría explícita
 **Por clasificar** cuando no puede inferirla. Esos borradores exigen una selección
 manual de tipo o categoría antes de confirmarse.
 
+También entiende importes dictados en palabras, miles y céntimos, y separa frases
+compuestas en candidatos independientes. Una cantidad de artículo, como "un
+helado y me costó dos soles", no se trata como un importe: se registra solo el
+precio de S/ 2 con el detalle "helado". Los comercios conocidos como Netflix,
+Spotify y ChatGPT se proponen como `Suscripciones`; Amazon se mantiene como
+"Por clasificar" porque puede referirse a compras de naturaleza distinta.
+
 ## Garantías del lote
 
 `FinanceStoreFacade.addTransactionBatch` valida todos los movimientos antes de

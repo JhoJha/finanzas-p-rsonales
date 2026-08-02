@@ -19,25 +19,43 @@ type ParserLocale = 'es-PE' | 'en-US';
 type ActionType = 'income' | 'expense';
 
 const MONEY_NUMBER = /(?<!\d)(?:\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?!\d)/g;
-const CURRENCY_AFTER = /^\s*(?:s\/?\.?|soles?|pen|\$|usd|dollars?)\b/i;
+const CURRENCY_AFTER = /^\s*(?:s\/?\.?|sol(?:es)?|pen|\$|usd|dollars?)\b/i;
 const CURRENCY_BEFORE = /(?:s\/?\.?|pen|\$|usd)\s*$/i;
-const CONTINUATION_DETAIL = /^\s*(?:en|para|de|on|for|at|in)\b/i;
+const CONTINUATION_DETAIL = /^\s*(?:en|para|de|por|on|for|at|in)\b/i;
+const SPANISH_NUMBER_SEQUENCE = /\b(?:cero|un(?:o|a)?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieciseis|diecisiete|dieciocho|diecinueve|veinte|veinti(?:uno|una|[úu]n|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|mil|mill[oó]n(?:es)?|y|con|coma|punto)(?:\s+(?:cero|un(?:o|a)?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieciseis|diecisiete|dieciocho|diecinueve|veinte|veinti(?:uno|una|[úu]n|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|mil|mill[oó]n(?:es)?|y|con|coma|punto))*\b/giu;
+const ENGLISH_NUMBER_SEQUENCE = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and|point|dot|comma)(?:[\s-]+(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and|point|dot|comma))*\b/giu;
+
+const numberValues: Record<ParserLocale, Record<string, number>> = {
+	'es-PE': {
+		cero: 0, un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9,
+		diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
+		veinte: 20, veintiuno: 21, veintiuna: 21, veintidos: 22, veintitres: 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26, veintisiete: 27, veintiocho: 28, veintinueve: 29,
+		treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90,
+		cien: 100, ciento: 100, doscientos: 200, trescientos: 300, cuatrocientos: 400, quinientos: 500, seiscientos: 600, setecientos: 700, ochocientos: 800, novecientos: 900
+	},
+	'en-US': {
+		zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+		ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+		twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100
+	}
+};
 
 const language = {
 	'es-PE': {
-		income: ['ingrese', 'gane', 'recibi', 'cobre', 'me pagaron', 'sueldo', 'salario', 'venta'],
+		income: ['ingrese', 'gane', 'recibi', 'cobre', 'me pagaron', 'me dio', 'me dieron', 'me regalo', 'sueldo', 'salario', 'venta'],
 		expense: ['gaste', 'pague', 'compre', 'costo', 'debite'],
 		yesterday: ['ayer'],
 		categories: {
-			food: ['comida', 'almuerzo', 'desayuno', 'cena', 'restaurante', 'pizza', 'hamburguesa', 'supermercado', 'mercado', 'cafe'],
-			transport: ['pasaje', 'pasajes', 'taxi', 'transporte', 'bus', 'gasolina', 'uber', 'tren', 'metro'],
+			food: ['comida', 'almuerzo', 'desayuno', 'cena', 'restaurante', 'pizza', 'hamburguesa', 'supermercado', 'mercado', 'cafe', 'pan', 'queso', 'helado'],
+			transport: ['pasaje', 'pasajes', 'taxi', 'transporte', 'bus', 'gasolina', 'uber', 'tren', 'metro', 'moto', 'mototaxi'],
 			housing: ['alquiler', 'luz', 'agua', 'internet', 'casa', 'mantenimiento', 'hotel', 'hospedaje'],
 			education: ['colegio', 'universidad', 'curso', 'libro', 'cuaderno', 'pension'],
-			entertainment: ['cine', 'juego', 'salida', 'cerveza', 'fiesta', 'ocio', 'entretenimiento']
+			entertainment: ['cine', 'juego', 'salida', 'cerveza', 'fiesta', 'ocio', 'entretenimiento'],
+			subscriptions: ['netflix', 'spotify', 'chatgpt', 'openai', 'youtube premium', 'disney', 'hbo', 'amazon prime', 'prime video']
 		}
 	},
 	'en-US': {
-		income: ['received', 'earned', 'got paid', 'salary', 'paycheck', 'sold'],
+		income: ['received', 'earned', 'got paid', 'was given', 'gifted', 'salary', 'paycheck', 'sold'],
 		expense: ['spent', 'paid', 'bought', 'cost', 'charged'],
 		yesterday: ['yesterday'],
 		categories: {
@@ -45,7 +63,8 @@ const language = {
 			transport: ['fare', 'ticket', 'taxi', 'transport', 'bus', 'gas', 'uber', 'train', 'subway'],
 			housing: ['rent', 'electricity', 'water', 'internet', 'home', 'maintenance', 'hotel', 'lodging'],
 			education: ['school', 'university', 'course', 'book', 'notebook', 'tuition'],
-			entertainment: ['movie', 'game', 'outing', 'beer', 'party', 'leisure', 'entertainment']
+			entertainment: ['movie', 'game', 'outing', 'beer', 'party', 'leisure', 'entertainment'],
+			subscriptions: ['netflix', 'spotify', 'chatgpt', 'openai', 'youtube premium', 'disney', 'hbo', 'amazon prime', 'prime video']
 		}
 	}
 } as const;
@@ -53,7 +72,7 @@ const language = {
 function categoryIdForCode(categories: Category[], code: CategoryCode, type: ActionType): string {
 	return categories.find((category) => category.code === code && category.type === type)?.id
 		?? categories.find((category) => categoryCodeForLegacyId(category.id) === code && category.type === type)?.id
-		?? (code === 'uncategorized' ? '7' : undefined)
+		?? (code === 'uncategorized' ? '7' : code === 'subscriptions' ? '8' : undefined)
 		?? categories.find((category) => category.type === type && !category.id.startsWith('__'))?.id
 		?? (type === 'income' ? '6' : '7');
 }
@@ -104,14 +123,79 @@ function parseLocalizedAmount(raw: string): number | null {
 	return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
+function parseSpokenInteger(words: string[], locale: ParserLocale): number | null {
+	let total = 0;
+	let current = 0;
+	let foundNumber = false;
+	for (const word of words) {
+		if (word === 'y' || word === 'and') continue;
+		if (word === 'mil' || word === 'thousand') {
+			total += (current || 1) * 1_000;
+			current = 0;
+			foundNumber = true;
+			continue;
+		}
+		if (word === 'millon' || word === 'millones' || word === 'million') {
+			total += (current || 1) * 1_000_000;
+			current = 0;
+			foundNumber = true;
+			continue;
+		}
+		if (word === 'hundred') {
+			current = (current || 1) * 100;
+			foundNumber = true;
+			continue;
+		}
+		const value = numberValues[locale][word];
+		if (value === undefined) return null;
+		current += value;
+		foundNumber = true;
+	}
+	return foundNumber ? total + current : null;
+}
+
+function parseSpokenAmount(value: string, locale: ParserLocale): number | null {
+	const words = normalized(value).split(/[\s-]+/).filter(Boolean);
+	const markerIndex = words.findIndex((word) => ['con', 'coma', 'punto', 'point', 'dot'].includes(word));
+	const integerWords = markerIndex >= 0 ? words.slice(0, markerIndex) : words;
+	const integer = parseSpokenInteger(integerWords, locale);
+	if (integer === null) return null;
+	if (markerIndex < 0) return integer;
+	const fraction = parseSpokenInteger(words.slice(markerIndex + 1), locale);
+	if (fraction === null || fraction < 0 || fraction >= 100) return null;
+	const fractionText = locale === 'es-PE' ? String(fraction).padStart(2, '0') : String(fraction);
+	return Number(`${integer}.${fractionText}`);
+}
+
+/** Convierte palabras numéricas a dígitos antes de aplicar las mismas reglas de contexto monetario. */
+function replaceSpokenAmounts(text: string, locale: ParserLocale): string {
+	const expression = locale === 'es-PE' ? SPANISH_NUMBER_SEQUENCE : ENGLISH_NUMBER_SEQUENCE;
+	return text.replace(expression, (candidate) => {
+		const amount = parseSpokenAmount(candidate, locale);
+		return amount === null ? candidate : String(amount);
+	});
+}
+
 function noteForSegment(segment: string, fullText: string): string {
 	const note = segment
 		.replace(CURRENCY_AFTER, '')
 		.replace(/^\s*(?:en|para|de|on|for|at|in)\s+/i, '')
+		.replace(/\s*,\s*(?:me\s+)?(?:compr[ée]|gast[ée]|pagu[ée]|recib[íi]).*$/i, '')
+		.replace(/\s*,\s*luego\s+.*?me\s+dio(?:ron)?.*$/i, '')
 		.replace(/\s+(?:y|e|and)\s*$/i, '')
 		.replace(/[,.؛;]+$/g, '')
 		.trim();
 	return note || fullText.trim();
+}
+
+/** Evita convertir “compré un helado y me costó dos soles” en un gasto de S/1. */
+function isItemQuantityBeforeLaterPrice(after: string): boolean {
+	return /\b(?:me\s+)?(?:costo|costó|price was|cost)\b/i.test(after);
+}
+
+function deferredItemDetail(before: string): string | null {
+	const match = /(?:compre|compré|bought)\s+\d+(?:[.,]\d+)?\s+(.+?)\s+(?:y\s+)?(?:me\s+)?(?:costo|costó|cost)\s*$/i.exec(before);
+	return match?.[1].replace(/[,.؛;]+$/g, '').trim() || null;
 }
 
 /**
@@ -124,7 +208,8 @@ export function parseSpeechBatch(
 	options: { date: string; locale?: ParserLocale } = { date: formatDateOnly(new Date()) }
 ): SpeechTransactionDraft[] {
 	const locale = options.locale ?? 'es-PE';
-	const matches = [...text.matchAll(MONEY_NUMBER)];
+	const parsedText = replaceSpokenAmounts(text, locale);
+	const matches = [...parsedText.matchAll(MONEY_NUMBER)];
 	const drafts: SpeechTransactionDraft[] = [];
 	let previousAcceptedEnd = 0;
 
@@ -134,17 +219,18 @@ export function parseSpeechBatch(
 		if (!amount) continue;
 		const start = match.index ?? 0;
 		const end = start + match[0].length;
-		const nextStart = matches[index + 1]?.index ?? text.length;
-		const before = text.slice(previousAcceptedEnd, start);
-		const after = text.slice(end, nextStart);
+		const nextStart = matches[index + 1]?.index ?? parsedText.length;
+		const before = parsedText.slice(previousAcceptedEnd, start);
+		const after = parsedText.slice(end, nextStart);
 		const action = lastActionIn(before, locale);
 		const hasCurrency = CURRENCY_BEFORE.test(before) || CURRENCY_AFTER.test(after);
 		const isContinuation = drafts.length > 0 && CONTINUATION_DETAIL.test(after);
-		if (!action && !hasCurrency && !isContinuation) continue;
+		if ((!action && !hasCurrency && !isContinuation) || (!hasCurrency && isItemQuantityBeforeLaterPrice(after))) continue;
 
 		const inheritedType = drafts.at(-1)?.type;
 		const type = action ?? inheritedType ?? 'expense';
-		const categoryCode = categoryCodeForText(after, type, locale) ?? 'uncategorized';
+		const deferredDetail = deferredItemDetail(before);
+		const categoryCode = categoryCodeForText(after, type, locale) ?? categoryCodeForText(deferredDetail ?? before, type, locale) ?? 'uncategorized';
 		const reviewReasons: SpeechReviewReason[] = [
 			...(action || inheritedType ? [] : ['type' as const]),
 			...(categoryCode === 'uncategorized' ? ['category' as const] : [])
@@ -155,7 +241,7 @@ export function parseSpeechBatch(
 			categoryCode,
 			categoryId: categoryIdForCode(categories, categoryCode, type),
 			type,
-			note: noteForSegment(after, text),
+			note: deferredDetail ?? noteForSegment(after, parsedText),
 			date: dateForText(text, options.date, locale),
 			reviewReasons
 		});

@@ -4,7 +4,7 @@ import { loadFinanceSnapshot, saveFinanceSnapshot, type FinanceStateSnapshot } f
 import { categoryCodeForLegacyId } from '$lib/domain/category-codes';
 import { DEFAULT_LOCALE, DEFAULT_TIME_ZONE } from '$lib/i18n';
 
-export const CURRENT_FINANCE_STATE_VERSION = 8;
+export const CURRENT_FINANCE_STATE_VERSION = 9;
 
 export interface FinanceState {
 	version: number;
@@ -75,6 +75,16 @@ export function migrateFinanceState(state: FinanceState): FinanceState {
 			categories: migrated.categories.some((category) => category.code === 'uncategorized' || category.id === '7') || !uncategorized
 				? migrated.categories
 				: [...migrated.categories, uncategorized]
+		};
+	}
+	if (migrated.version < 9) {
+		const subscriptions = defaultCategories.find((category) => category.code === 'subscriptions');
+		migrated = {
+			...migrated,
+			version: 9,
+			categories: migrated.categories.some((category) => category.code === 'subscriptions' || category.id === '8') || !subscriptions
+				? migrated.categories
+				: [...migrated.categories, subscriptions]
 		};
 	}
 	return migrated;

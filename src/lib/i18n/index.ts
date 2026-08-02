@@ -32,11 +32,11 @@ const messages: Record<SupportedLocale, Record<MessageKey, string>> = {
 const categoryLabels: Record<SupportedLocale, Partial<Record<string, string>>> = {
 	'es-PE': {
 		food: 'Alimentación', transport: 'Transporte', housing: 'Vivienda', education: 'Educación',
-		entertainment: 'Ocio', uncategorized: 'Por clasificar', income: 'Trabajo / Ingresos', debt_payment: 'Pago de deuda', savings: 'Ahorro / Meta'
+		entertainment: 'Ocio', subscriptions: 'Suscripciones', uncategorized: 'Por clasificar', income: 'Trabajo / Ingresos', debt_payment: 'Pago de deuda', savings: 'Ahorro / Meta'
 	},
 	'en-US': {
 		food: 'Food', transport: 'Transport', housing: 'Housing', education: 'Education',
-		entertainment: 'Entertainment', uncategorized: 'Uncategorized', income: 'Work / Income', debt_payment: 'Debt payment', savings: 'Savings / Goal'
+		entertainment: 'Entertainment', subscriptions: 'Subscriptions', uncategorized: 'Uncategorized', income: 'Work / Income', debt_payment: 'Debt payment', savings: 'Savings / Goal'
 	}
 };
 

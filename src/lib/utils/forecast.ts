@@ -25,7 +25,7 @@ export interface CashForecast {
 	forecastBalance: number;
 }
 
-function merchantName(note: string | undefined, categoryId: string): string {
+export function subscriptionMerchantName(note: string | undefined, categoryId: string): string {
 	return (note || categoryId)
 		.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 		.replace(/\d{3,}/g, ' ').replace(/[^a-zA-Z0-9 ]/g, ' ')
@@ -45,7 +45,7 @@ export function detectSubscriptions(transactions: Transaction[], accounts: Accou
 	const grouped = new Map<string, Transaction[]>();
 	for (const transaction of transactions) {
 		if (transaction.type !== 'expense' || transaction.categoryId.startsWith('__') || !transaction.note?.trim()) continue;
-		const merchant = merchantName(transaction.note, transaction.categoryId);
+		const merchant = subscriptionMerchantName(transaction.note, transaction.categoryId);
 		const key = `${transaction.accountId}|${merchant}`;
 		grouped.set(key, [...(grouped.get(key) ?? []), transaction]);
 	}
@@ -71,7 +71,7 @@ export function detectSubscriptions(transactions: Transaction[], accounts: Accou
 		// cuando el servicio acaba de aumentar su tarifa.
 		const monthlyCost = latest * (isWeekly ? 4.345 : isBiweekly ? 2.1725 : 1);
 		return [{
-			merchant: merchantName(sorted[0].note, sorted[0].categoryId), categoryId: sorted[0].categoryId, accountId: sorted[0].accountId,
+			merchant: subscriptionMerchantName(sorted[0].note, sorted[0].categoryId), categoryId: sorted[0].categoryId, accountId: sorted[0].accountId,
 			monthlyCost: Math.round(monthlyCost * 100) / 100, annualCost: Math.round(monthlyCost * 12 * 100) / 100,
 			nextDate, lastDate: new Date(sorted.at(-1)!.date), occurrences: sorted.length,
 			changePercent: historicalAverage ? Math.round(((latest - historicalAverage) / historicalAverage) * 100) : 0
@@ -111,7 +111,7 @@ export function calculateCashForecast(
 		}
 	}
 	const subscriptions = detectSubscriptions(transactions, accounts, settings, now);
-	const recurringMerchants = new Set(recurring.filter((item) => item.type === 'expense').map((item) => merchantName(item.note, item.categoryId)));
+	const recurringMerchants = new Set(recurring.filter((item) => item.type === 'expense').map((item) => subscriptionMerchantName(item.note, item.categoryId)));
 	const pendingSubscriptions = subscriptions.filter((item) => item.nextDate <= endDate && !recurringMerchants.has(item.merchant));
 	const subscriptionExpenses = pendingSubscriptions.reduce((sum, item) => sum + item.monthlyCost, 0);
 	for (const item of pendingSubscriptions) plannedByCategory.set(item.categoryId, (plannedByCategory.get(item.categoryId) ?? 0) + item.monthlyCost);

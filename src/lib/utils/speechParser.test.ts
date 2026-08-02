@@ -45,4 +45,39 @@ describe('parseSpeechBatch', () => {
 			{ amount: 20, type: 'expense', categoryId: '1' }
 		]);
 	});
+
+	it('convierte montos hablados en español, incluidos miles y céntimos', () => {
+		const drafts = parseSpeechBatch('Gasté treinta soles en almuerzo, mil doscientos con cincuenta en alquiler y veinte en pasajes', defaultCategories, { date: '2026-08-01' });
+		expect(drafts.map((draft) => ({ amount: draft.amount, categoryId: draft.categoryId }))).toEqual([
+			{ amount: 30, categoryId: '1' },
+			{ amount: 1200.5, categoryId: '3' },
+			{ amount: 20, categoryId: '2' }
+		]);
+	});
+
+	it('convierte montos hablados en inglés sin interpretar una fecha como gasto', () => {
+		const drafts = parseSpeechBatch('On the first of August I spent thirty dollars on food and one thousand two hundred on rent', defaultCategories, { date: '2026-08-01', locale: 'en-US' });
+		expect(drafts.map((draft) => ({ amount: draft.amount, categoryId: draft.categoryId, type: draft.type }))).toEqual([
+			{ amount: 30, categoryId: '1', type: 'expense' },
+			{ amount: 1200, categoryId: '3', type: 'expense' }
+		]);
+	});
+
+	it('separa un dictado compuesto sin confundir cantidad de artículos con importe', () => {
+		const drafts = parseSpeechBatch('Acabo de ir a la panadería, compré dos soles de pan, compré un sol de queso, me compré un helado y me costó dos soles, gasté tres soles en moto, luego mi abuela me dio cinco soles de propina', defaultCategories, { date: '2026-08-01' });
+		expect(drafts.map((draft) => ({ amount: draft.amount, type: draft.type, categoryId: draft.categoryId, note: draft.note }))).toEqual([
+			{ amount: 2, type: 'expense', categoryId: '1', note: 'pan' },
+			{ amount: 1, type: 'expense', categoryId: '1', note: 'queso' },
+			{ amount: 2, type: 'expense', categoryId: '1', note: 'helado' },
+			{ amount: 3, type: 'expense', categoryId: '2', note: 'moto' },
+			{ amount: 5, type: 'income', categoryId: '6', note: 'propina' }
+		]);
+	});
+
+	it('clasifica comercios de suscripción conocidos sin asumir que Amazon es una suscripción', () => {
+		const [netflix] = parseSpeechBatch('Pagué 25 soles de Netflix', defaultCategories, { date: '2026-08-01' });
+		const [amazon] = parseSpeechBatch('Pagué 25 soles en Amazon', defaultCategories, { date: '2026-08-01' });
+		expect(netflix).toMatchObject({ categoryCode: 'subscriptions', categoryId: '8', reviewReasons: [] });
+		expect(amazon).toMatchObject({ categoryCode: 'uncategorized', categoryId: '7', reviewReasons: ['category'] });
+	});
 });

@@ -37,7 +37,7 @@ test('revisa, confirma y deshace un lote generado desde dictado', async ({ page 
 			onend: (() => void) | null = null;
 			start() {
 				queueMicrotask(() => {
-					this.onresult?.({ results: [[{ transcript: 'Hoy gasté 30 soles en hotel, 12 en comida y 20 en pasajes.' }]] });
+					this.onresult?.({ results: [[{ transcript: 'Hoy gasté treinta soles en hotel, doce en comida y veinte en pasajes.' }]] });
 					this.onend?.();
 				});
 			}
