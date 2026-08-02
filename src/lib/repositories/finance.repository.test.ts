@@ -20,8 +20,8 @@ describe('FinanceRepository migrations', () => {
 		const migrated = migrateFinanceState(state);
 		expect(migrated.categories).toEqual(expect.arrayContaining([
 			{ id: '1', code: 'food', name: 'Alimentos personalizados', icon: 'tag', color: 'bg-orange-500', type: 'expense' },
-			{ id: '7', code: 'uncategorized', name: 'Por clasificar', icon: 'circle-help', color: 'bg-slate-500', type: 'expense' },
-			{ id: '8', code: 'subscriptions', name: 'Suscripciones', icon: 'repeat-2', color: 'bg-indigo-500', type: 'expense' }
+			{ id: 'system-uncategorized', code: 'uncategorized', name: 'Por clasificar', icon: 'circle-help', color: 'bg-slate-500', type: 'expense' },
+			{ id: 'system-subscriptions', code: 'subscriptions', name: 'Suscripciones', icon: 'repeat-2', color: 'bg-indigo-500', type: 'expense' }
 		]));
 		expect(migrated.categories.map((category) => category.code)).toEqual(expect.arrayContaining(['health', 'personal_care', 'clothing', 'gifts_family', 'pets', 'taxes', 'fees', 'business']));
 		expect(migrated.settings).toMatchObject({ locale: 'es-PE', timeZone: 'America/Lima' });

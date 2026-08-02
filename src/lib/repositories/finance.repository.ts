@@ -72,9 +72,9 @@ export function migrateFinanceState(state: FinanceState): FinanceState {
 		migrated = {
 			...migrated,
 			version: 8,
-			categories: migrated.categories.some((category) => category.code === 'uncategorized' || category.id === '7') || !uncategorized
+			categories: migrated.categories.some((category) => category.code === 'uncategorized') || !uncategorized
 				? migrated.categories
-				: [...migrated.categories, uncategorized]
+				: [...migrated.categories, { ...uncategorized, id: 'system-uncategorized' }]
 		};
 	}
 	if (migrated.version < 9) {
@@ -82,9 +82,9 @@ export function migrateFinanceState(state: FinanceState): FinanceState {
 		migrated = {
 			...migrated,
 			version: 9,
-			categories: migrated.categories.some((category) => category.code === 'subscriptions' || category.id === '8') || !subscriptions
+			categories: migrated.categories.some((category) => category.code === 'subscriptions') || !subscriptions
 				? migrated.categories
-				: [...migrated.categories, subscriptions]
+				: [...migrated.categories, { ...subscriptions, id: 'system-subscriptions' }]
 		};
 	}
 	if (migrated.version < 10) migrated = { ...migrated, version: 10, settings: { ...migrated.settings, classificationRules: migrated.settings.classificationRules ?? [] } };

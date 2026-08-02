@@ -91,4 +91,20 @@ describe('parseSpeechBatch', () => {
 		expect(draft).toMatchObject({ type: 'income', categoryId: '6', counterparty: 'Abuela', incomeSource: 'gift' });
 		expect(draft.explanation.length).toBeGreaterThan(0);
 	});
+
+	it('preserva ceros y posiciones en decimales hablados', () => {
+		expect(parseSpeechBatch('Gasté treinta coma cinco soles en comida', defaultCategories, { date: '2026-08-01' })[0].amount).toBe(30.5);
+		expect(parseSpeechBatch('I spent thirty point zero five dollars on food', defaultCategories, { date: '2026-08-01', locale: 'en-US' })[0].amount).toBe(30.05);
+	});
+
+	it('aplica una regla válida a una categoría personalizada sin dejarla pendiente', () => {
+		const custom = { id: 'custom-food', name: 'Antojitos', icon: 'tag', color: 'bg-orange-500', type: 'expense' as const };
+		const [draft] = parseSpeechBatch('Gasté 2 soles en mi antojito', [...defaultCategories, custom], { date: '2026-08-01', rules: [{ id: 'rule-custom', phrase: 'antojito', categoryId: custom.id, type: 'expense', locale: 'es-PE', confidence: 2, enabled: true, createdAt: '2026-08-01T12:00:00.000Z' }] });
+		expect(draft).toMatchObject({ categoryId: custom.id, categoryCode: 'custom', reviewReasons: [] });
+	});
+
+	it('no aplica reglas por una subcadena dentro de otra palabra', () => {
+		const [draft] = parseSpeechBatch('Gasté 20 soles en pantalón', defaultCategories, { date: '2026-08-01', rules: [{ id: 'rule-pan', phrase: 'pan', categoryId: '1', type: 'expense', locale: 'es-PE', confidence: 2, enabled: true, createdAt: '2026-08-01T12:00:00.000Z' }] });
+		expect(draft).toMatchObject({ categoryCode: 'clothing', categoryId: '11' });
+	});
 });

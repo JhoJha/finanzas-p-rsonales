@@ -24,13 +24,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		return privateApiError(503, 'SERVICE_UNAVAILABLE');
 	}
 
+	let providerInvoked = false;
 	try {
+		providerInvoked = true;
 		const result = await services.ai.createProposal({ ...input.data, idempotencyKey, now: new Date().toISOString() });
 		// Los tokens son telemetría. La cuota reservada y expuesta es siempre por solicitud.
 		void services.capabilities.recordAiUsage(identity.userId, { providerTokens: result.providerTokens }).catch(() => undefined);
 		return json(AiProposalResponseSchema.parse({ action: result.action, remainingQuota: capabilities.remainingAiRequests === null ? null : capabilities.remainingAiRequests - 1 }), { headers: privateApiHeaders });
 	} catch {
-		await services.capabilities.releaseAiRequest(identity.userId, idempotencyKey).catch(() => undefined);
+		// Tras iniciar la llamada no es posible saber si el proveedor la procesó;
+		// conservar la reserva evita reintentos que generen coste sin cuota.
+		if (!providerInvoked) await services.capabilities.releaseAiRequest(identity.userId, idempotencyKey).catch(() => undefined);
 		return privateApiError(503, 'SERVICE_UNAVAILABLE');
 	}
 };

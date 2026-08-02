@@ -9,6 +9,13 @@ export const INTERNAL_CATEGORY_SAVINGS = '__savings__';
 
 const EntityId = z.string().trim().min(1);
 const PositiveAmount = z.number().finite().positive();
+const ReceiptSchema = z.object({
+	id: EntityId,
+	name: z.string().trim().min(1).max(180),
+	mimeType: z.string().trim().min(1).max(100),
+	size: z.number().int().nonnegative().max(1_400_000),
+	checksum: z.string().regex(/^[a-f0-9]{64}$/).optional()
+});
 const CurrencyCode = z.string().trim().regex(/^[A-Z]{3}$/, 'Usa un código ISO de moneda en mayúsculas, por ejemplo USD.');
 const IsoDateTime = z.string().datetime({ offset: true });
 const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe usar el formato YYYY-MM-DD.').refine((value) => {
@@ -120,7 +127,7 @@ export const TransactionSchema = z.object({
 	incomeSource: z.enum(['salary', 'sales', 'gift', 'refund', 'loan', 'client', 'other']).optional(),
 	groupId: EntityId.optional(),
 	groupLabel: z.string().trim().min(1).max(120).optional(),
-	receipt: z.object({ name: z.string().trim().min(1).max(180), mimeType: z.string().trim().min(1).max(100), dataUrl: z.string().max(2_000_000) }).optional(),
+	receipt: ReceiptSchema.optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
 	tags: z.array(z.string()).optional(),
 	// Se capturan al crear el movimiento para que los reportes históricos no
@@ -163,7 +170,7 @@ export const RecurringTransactionSchema = z.object({
 	incomeSource: z.enum(['salary', 'sales', 'gift', 'refund', 'loan', 'client', 'other']).optional(),
 	groupId: EntityId.optional(),
 	groupLabel: z.string().trim().min(1).max(120).optional(),
-	receipt: z.object({ name: z.string().trim().min(1).max(180), mimeType: z.string().trim().min(1).max(100), dataUrl: z.string().max(2_000_000) }).optional(),
+	receipt: ReceiptSchema.optional(),
 	// Permite que el pronóstico reconozca una cuota de deuda ya programada.
 	debtId: EntityId.optional(),
 	type: z.enum(['expense', 'income', 'transfer']),

@@ -8,6 +8,7 @@
 	import { parseSpeechBatch, type SpeechTransactionDraft } from '$lib/utils/speechParser';
 	import { categoryDisplayName } from '$lib/i18n';
 	import { dateTimeFromDateOnly, todayInTimeZone } from '$lib/utils/date';
+	import { saveReceipt } from '$lib/stores/storage';
 
 	let amount = $state('');
 	let categoryId = $state('1');
@@ -21,7 +22,8 @@
 	let location = $state('');
 	let counterparty = $state('');
 	let incomeSource = $state<'salary' | 'sales' | 'gift' | 'refund' | 'loan' | 'client' | 'other'>('other');
-	let receipt = $state<{ name: string; mimeType: string; dataUrl: string } | undefined>();
+	let receipt = $state<{ id: string; name: string; mimeType: string; size: number; checksum?: string } | undefined>();
+	let receiptFile = $state<File | undefined>();
 	let txDate = $state(todayInTimeZone(financeStore.settings.timeZone)); // YYYY-MM-DD, por defecto hoy
 	let isRecording = $state(false);
 	let activeRecognition = $state<any>(null);
@@ -102,14 +104,20 @@
 		}
 	}
 
-	function saveTransaction() {
+	async function saveTransaction() {
 		const finalAmount = evaluateMath(amount);
 
 		if (finalAmount === null || isNaN(finalAmount) || finalAmount <= 0) {
 			showToastMsg('Ingresa un monto válido', 'error');
 			return;
 		}
+		if (!isValidVoiceDate(txDate)) {
+			showToastMsg('Ingresa una fecha válida.', 'error');
+			return;
+		}
 
+		try {
+		if (receipt && receiptFile) await saveReceipt(receipt.id, receiptFile);
 		const newTx = {
 			id: crypto.randomUUID(),
 			date: dateTimeFromDateOnly(txDate, financeStore.settings.timeZone),
@@ -165,8 +173,12 @@
 		location = '';
 		counterparty = '';
 		receipt = undefined;
+		receiptFile = undefined;
 		dictationResult = '';
 		txDate = todayInTimeZone(financeStore.settings.timeZone);
+		} catch {
+			showToastMsg('No se pudo guardar el comprobante local.', 'error');
+		}
 	}
 
 	function addCustomCategory() {
@@ -282,13 +294,14 @@
 		}
 	}
 
-	function loadReceipt(event: Event) {
+	async function loadReceipt(event: Event) {
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
 		if (!file) return;
 		if (file.size > 1_400_000) { showToastMsg('El comprobante debe pesar menos de 1.4 MB.', 'error'); return; }
-		const reader = new FileReader();
-		reader.onload = () => { receipt = { name: file.name, mimeType: file.type || 'application/octet-stream', dataUrl: String(reader.result) }; };
-		reader.readAsDataURL(file);
+		const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+		const checksum = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+		receiptFile = file;
+		receipt = { id: crypto.randomUUID(), name: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, checksum };
 	}
 
 	function undoVoiceBatch() {

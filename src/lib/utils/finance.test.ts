@@ -78,7 +78,7 @@ describe('reglas financieras', () => {
 	it('detecta pagos mensuales y proyecta el flujo de caja', () => {
 		const transactions: Transaction[] = ['2026-05-05', '2026-06-05', '2026-07-05'].map((date, index) => ({
 			id: `netflix-${index}`, date: `${date}T12:00:00.000Z`, timestamp: new Date(`${date}T12:00:00.000Z`).getTime(), amount: index === 2 ? 25 : 20,
-			categoryId: 'food', accountId: 'cash', type: 'expense', note: 'NETFLIX.COM'
+			categoryId: 'food', accountId: 'cash', type: 'expense', merchant: 'Netflix'
 		}));
 		const settings = { baseCurrency: 'PEN', exchangeRates: {} };
 		const detected = detectSubscriptions(transactions, accounts, settings, new Date('2026-07-31T12:00:00'));

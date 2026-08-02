@@ -9,7 +9,7 @@ export type SpeechReviewReason = 'type' | 'category';
 export type SpeechTransactionDraft = {
 	id: string;
 	amount: number;
-	categoryCode: CategoryCode;
+	categoryCode: CategoryCode | 'custom';
 	categoryId: string;
 	type: 'income' | 'expense';
 	note: string;
@@ -120,7 +120,7 @@ function categoryMatchForText(text: string, type: ActionType, locale: ParserLoca
 	if (type === 'income') return { code: 'income', keyword: locale === 'es-PE' ? 'ingreso' : 'income' };
 	const value = normalized(text);
 	for (const [code, keywords] of Object.entries(language[locale].categories) as [Exclude<CategoryCode, 'income' | 'debt_payment' | 'savings' | 'uncategorized'>, readonly string[]][]) {
-		const keyword = keywords.find((item) => value.includes(item));
+		const keyword = keywords.find((item) => new RegExp(`(?:^|[^a-z0-9])${item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^a-z0-9])`, 'i').test(value));
 		if (keyword) return { code, keyword };
 	}
 	return null;
@@ -142,7 +142,8 @@ function merchantForText(text: string, locale: ParserLocale): string | undefined
 		: /\b(?:at|from)\s+(?:the )?([\p{L}\d][\p{L}\d .'-]{1,70}?)(?=$|[,.;])/iu.exec(source);
 	if (!match) return undefined;
 	const candidate = match[1].replace(/\b(?:para|por|for)\b.*$/iu, '').trim();
-	return candidate.length >= 2 ? titleCase(candidate) : undefined;
+	const knownMerchant = /^(?:cineplanet|netflix|spotify|chatgpt|amazon|la mechita)$/iu.test(candidate);
+	return candidate.length >= 2 && (knownMerchant || /\p{Lu}/u.test(match[1])) ? titleCase(candidate) : undefined;
 }
 
 function counterpartyForText(text: string, locale: ParserLocale): string | undefined {
@@ -234,9 +235,11 @@ function parseSpokenAmount(value: string, locale: ParserLocale): number | null {
 	const integer = parseSpokenInteger(integerWords, locale);
 	if (integer === null) return null;
 	if (markerIndex < 0) return integer;
-	const fraction = parseSpokenInteger(words.slice(markerIndex + 1), locale);
-	if (fraction === null || fraction < 0 || fraction >= 100) return null;
-	const fractionText = locale === 'es-PE' ? String(fraction).padStart(2, '0') : String(fraction);
+	const decimalWords = words.slice(markerIndex + 1);
+	const digits = decimalWords.map((word) => numberValues[locale][word]).filter((digit): digit is number => digit !== undefined && digit >= 0 && digit <= 9);
+	const fractionText = digits.length === decimalWords.length ? digits.join('') : String(parseSpokenInteger(decimalWords, locale) ?? '');
+	const fraction = Number(fractionText);
+	if (!fractionText || !Number.isInteger(fraction) || fraction < 0 || fraction >= 100) return null;
 	return Number(`${integer}.${fractionText}`);
 }
 
@@ -307,9 +310,11 @@ export function parseSpeechBatch(
 		const learned = findLearnedRule(detail, locale, options.rules ?? []);
 		const resolvedType = learned?.type ?? type;
 		const detectedCategory = categoryMatchForText(after, type, locale) ?? categoryMatchForText(deferredDetail ?? before, type, locale) ?? regionalCategoryMatch(`${before} ${after}`, options.regionalPacks ?? ['pe']);
+		const learnedCategory = learned ? categories.find((category) => category.id === learned.categoryId && category.type === resolvedType) : undefined;
 		const categoryCode = learned
-			? categories.find((category) => category.id === learned.categoryId)?.code ?? 'uncategorized'
+			? learnedCategory?.code ?? (learnedCategory ? 'custom' : 'uncategorized')
 			: detectedCategory?.code ?? 'uncategorized';
+		const resolvedCategoryId = learnedCategory?.id ?? categoryIdForCode(categories, categoryCode === 'custom' ? 'uncategorized' : categoryCode, resolvedType);
 		const merchant = merchantForText(deferredDetail ?? after, locale);
 		const counterparty = resolvedType === 'income' ? counterpartyForText(`${before} ${after}`, locale) : undefined;
 		const explanation = [
@@ -321,22 +326,22 @@ export function parseSpeechBatch(
 		];
 		const reviewReasons: SpeechReviewReason[] = [
 			...(learned || action || inheritedType ? [] : ['type' as const]),
-			...(categoryCode === 'uncategorized' ? ['category' as const] : [])
+			...(!learnedCategory && categoryCode === 'uncategorized' ? ['category' as const] : [])
 		];
 		drafts.push({
 			id: `speech-${drafts.length}`,
 			amount,
 			categoryCode,
-			categoryId: learned?.categoryId ?? categoryIdForCode(categories, categoryCode, resolvedType),
+			categoryId: resolvedCategoryId,
 			type: resolvedType,
 			note: detail,
 			date: dateForText(text, options.date, locale),
 			reviewReasons,
 			merchant,
-			location: merchant,
+			location: undefined,
 			counterparty,
 			incomeSource: resolvedType === 'income' ? incomeSourceForText(`${before} ${after}`, locale) : undefined,
-			subcategory: subcategoryForText(`${before} ${after}`, categoryCode),
+			subcategory: subcategoryForText(`${before} ${after}`, categoryCode === 'custom' ? 'uncategorized' : categoryCode),
 			explanation
 		});
 		previousAcceptedEnd = end;
