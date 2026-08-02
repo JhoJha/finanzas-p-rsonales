@@ -17,6 +17,12 @@ transcripción desde la aplicación.
 5. El último lote confirmado muestra **Deshacer**, que revierte únicamente sus
    movimientos y sus efectos sobre los saldos.
 
+El parser solo admite números con contexto monetario: ignora fechas, cantidades
+como "2 pasajes" y separadores de miles. Evalúa el tipo en el segmento de cada
+monto, soporta vocabulario `es-PE` y `en-US`, y usa la categoría explícita
+**Por clasificar** cuando no puede inferirla. Esos borradores exigen una selección
+manual de tipo o categoría antes de confirmarse.
+
 ## Garantías del lote
 
 `FinanceStoreFacade.addTransactionBatch` valida todos los movimientos antes de

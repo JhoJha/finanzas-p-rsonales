@@ -18,7 +18,7 @@ export class DeepSeekAiAdapter implements ServerAiAdapter {
 		private readonly fetchFn: typeof fetch = fetch
 	) {}
 
-	async createProposal(input: { source: 'voice' | 'chat'; text: string; locale: 'es-PE' | 'en-US'; timeZone: string; currency: string; idempotencyKey: string; now: string }): Promise<{ action: AgentAction; usedUnits: number }> {
+	async createProposal(input: { source: 'voice' | 'chat'; text: string; locale: 'es-PE' | 'en-US'; timeZone: string; currency: string; idempotencyKey: string; now: string }): Promise<{ action: AgentAction; providerTokens: number }> {
 		const response = await this.fetchFn(`${this.config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
 			method: 'POST',
 			headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
@@ -46,6 +46,6 @@ export class DeepSeekAiAdapter implements ServerAiAdapter {
 			id: crypto.randomUUID(), idempotencyKey: input.idempotencyKey, operation: 'propose',
 			summary: proposal.summary, transactions: proposal.transactions, requiresConfirmation: false, createdAt: new Date().toISOString()
 		});
-		return { action, usedUnits: deepSeekPayload.usage?.total_tokens ?? 0 };
+		return { action, providerTokens: deepSeekPayload.usage?.total_tokens ?? 0 };
 	}
 }

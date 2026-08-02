@@ -1,8 +1,10 @@
+import { DEFAULT_TIME_ZONE, resolveTimeZone as resolveKnownTimeZone } from '$lib/domain/time-zone';
+
 export const SUPPORTED_LOCALES = ['es-PE', 'en-US'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 export const DEFAULT_LOCALE: SupportedLocale = 'es-PE';
-export const DEFAULT_TIME_ZONE = 'America/Lima';
+export { DEFAULT_TIME_ZONE };
 
 export const TIME_ZONE_OPTIONS = [
 	{ value: 'America/Lima', label: 'Lima (UTC-5)' },
@@ -30,11 +32,11 @@ const messages: Record<SupportedLocale, Record<MessageKey, string>> = {
 const categoryLabels: Record<SupportedLocale, Partial<Record<string, string>>> = {
 	'es-PE': {
 		food: 'Alimentación', transport: 'Transporte', housing: 'Vivienda', education: 'Educación',
-		entertainment: 'Ocio', income: 'Trabajo / Ingresos', debt_payment: 'Pago de deuda', savings: 'Ahorro / Meta'
+		entertainment: 'Ocio', uncategorized: 'Por clasificar', income: 'Trabajo / Ingresos', debt_payment: 'Pago de deuda', savings: 'Ahorro / Meta'
 	},
 	'en-US': {
 		food: 'Food', transport: 'Transport', housing: 'Housing', education: 'Education',
-		entertainment: 'Entertainment', income: 'Work / Income', debt_payment: 'Debt payment', savings: 'Savings / Goal'
+		entertainment: 'Entertainment', uncategorized: 'Uncategorized', income: 'Work / Income', debt_payment: 'Debt payment', savings: 'Savings / Goal'
 	}
 };
 
@@ -43,13 +45,7 @@ export function resolveLocale(locale?: string): SupportedLocale {
 }
 
 export function resolveTimeZone(timeZone?: string): string {
-	if (!timeZone) return DEFAULT_TIME_ZONE;
-	try {
-		new Intl.DateTimeFormat('en-US', { timeZone }).format();
-		return timeZone;
-	} catch {
-		return DEFAULT_TIME_ZONE;
-	}
+	return resolveKnownTimeZone(timeZone);
 }
 
 export function translate(key: MessageKey, locale?: string): string {

@@ -5,6 +5,7 @@ export const CATEGORY_CODES = [
 	'housing',
 	'education',
 	'entertainment',
+	'uncategorized',
 	'income',
 	'debt_payment',
 	'savings'
@@ -19,6 +20,7 @@ export const LEGACY_CATEGORY_CODE_BY_ID: Readonly<Record<string, CategoryCode>> 
 	'3': 'housing',
 	'4': 'education',
 	'5': 'entertainment',
+	'7': 'uncategorized',
 	'6': 'income',
 	'__debt-payment__': 'debt_payment',
 	'__savings__': 'savings'

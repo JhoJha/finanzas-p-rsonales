@@ -18,4 +18,31 @@ describe('parseSpeechBatch', () => {
 		const [draft] = parseSpeechBatch('Ayer recibí 1200 de sueldo', defaultCategories, { date: '2026-08-01' });
 		expect(draft).toMatchObject({ amount: 1200, categoryId: '6', type: 'income', date: '2026-07-31' });
 	});
+
+	it('ignora fechas, cantidades y separadores de miles que no son movimientos', () => {
+		expect(parseSpeechBatch('El 1 de agosto gasté 30', defaultCategories, { date: '2026-08-01' }).map((draft) => draft.amount)).toEqual([30]);
+		expect(parseSpeechBatch('Gasté 100 en 2 pasajes', defaultCategories, { date: '2026-08-01' }).map((draft) => draft.amount)).toEqual([100]);
+		expect(parseSpeechBatch('Gasté 1,200 en alquiler', defaultCategories, { date: '2026-08-01' }).map((draft) => draft.amount)).toEqual([1200]);
+	});
+
+	it('determina el tipo por segmento cuando hay ingresos y gastos mezclados', () => {
+		const drafts = parseSpeechBatch('Recibí 1000 de sueldo y gasté 20 en comida', defaultCategories, { date: '2026-08-01' });
+		expect(drafts.map((draft) => ({ amount: draft.amount, type: draft.type, categoryId: draft.categoryId }))).toEqual([
+			{ amount: 1000, type: 'income', categoryId: '6' },
+			{ amount: 20, type: 'expense', categoryId: '1' }
+		]);
+	});
+
+	it('marca las categorías desconocidas para una confirmación explícita', () => {
+		const [draft] = parseSpeechBatch('Gasté 100 en medicina', defaultCategories, { date: '2026-08-01' });
+		expect(draft).toMatchObject({ categoryCode: 'uncategorized', categoryId: '7', reviewReasons: ['category'] });
+	});
+
+	it('reconoce vocabulario inglés cuando el locale es en-US', () => {
+		const drafts = parseSpeechBatch('I received 1,000 salary and spent 20 on food', defaultCategories, { date: '2026-08-01', locale: 'en-US' });
+		expect(drafts.map((draft) => ({ amount: draft.amount, type: draft.type, categoryId: draft.categoryId }))).toEqual([
+			{ amount: 1000, type: 'income', categoryId: '6' },
+			{ amount: 20, type: 'expense', categoryId: '1' }
+		]);
+	});
 });

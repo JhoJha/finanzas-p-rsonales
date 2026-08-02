@@ -29,5 +29,5 @@ export const createRecurringDebtPayment = (overrides: Partial<RecurringTransacti
 });
 
 export const createFinanceState = (overrides: Partial<FinanceState> = {}): FinanceState => ({
-	version: 7, transactions: [], categories: defaultCategories, goals: [], accounts: [createAccount()], budgets: [], recurringTransactions: [], debts: [], settings: createSettings(), ...overrides
+	version: 8, transactions: [], categories: defaultCategories, goals: [], accounts: [createAccount()], budgets: [], recurringTransactions: [], debts: [], settings: createSettings(), ...overrides
 });

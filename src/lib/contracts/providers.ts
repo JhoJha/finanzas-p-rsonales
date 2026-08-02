@@ -17,7 +17,8 @@ export interface CapabilitySnapshot {
 
 export interface CapabilitiesAdapter {
 	getCapabilities(userId: string): Promise<CapabilitySnapshot>;
-	recordAiUsage(userId: string, units: number): Promise<void>;
+	/** La cuota de producto se cuenta por solicitudes, no por tokens del proveedor. */
+	recordAiUsage(userId: string, usage: { providerTokens: number }): Promise<void>;
 }
 
 /** El adaptador recibe contexto minimizado y devuelve una propuesta, nunca una escritura local. */

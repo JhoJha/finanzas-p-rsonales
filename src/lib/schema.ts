@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CATEGORY_CODES } from '$lib/domain/category-codes';
+import { isValidTimeZone } from '$lib/domain/time-zone';
 
 /** IDs de categorías internas del sistema (no editables por el usuario) */
 export const INTERNAL_CATEGORY_DEBT_PAYMENT = '__debt-payment__';
@@ -52,7 +53,7 @@ export const SettingsSchema = z.object({
 	// Los defaults permiten leer respaldos previos sin perder una configuración
 	// estructurada a partir de la versión 7.
 	locale: z.enum(['es-PE', 'en-US']).default('es-PE'),
-	timeZone: z.string().trim().min(1).max(100).default('America/Lima'),
+	timeZone: z.string().trim().min(1).max(100).refine(isValidTimeZone, 'La zona horaria debe ser una zona IANA válida.').default('America/Lima'),
 	baseCurrency: CurrencyCode,
 	exchangeRates: z.record(CurrencyCode, z.number().finite().positive()),
 	// Fecha de la última consulta automática. Es opcional para conservar los
@@ -202,6 +203,7 @@ export const defaultCategories: Category[] = [
 	{ id: '3', code: 'housing', name: 'Vivienda', icon: 'home', color: 'bg-green-500', type: 'expense' },
 	{ id: '4', code: 'education', name: 'Educación', icon: 'graduation-cap', color: 'bg-purple-500', type: 'expense' },
 	{ id: '5', code: 'entertainment', name: 'Ocio', icon: 'gamepad-2', color: 'bg-pink-500', type: 'expense' },
+	{ id: '7', code: 'uncategorized', name: 'Por clasificar', icon: 'circle-help', color: 'bg-slate-500', type: 'expense' },
 	{ id: '6', code: 'income', name: 'Trabajo / Ingresos', icon: 'briefcase', color: 'bg-yellow-500', type: 'income' },
 	// Categorías internas del sistema — no se muestran al usuario en los selectores
 	{ id: INTERNAL_CATEGORY_DEBT_PAYMENT, code: 'debt_payment', name: 'Pago de Deuda', icon: 'hand-coins', color: 'bg-amber-500', type: 'expense' },

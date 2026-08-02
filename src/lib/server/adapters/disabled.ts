@@ -13,5 +13,7 @@ export class DisabledCapabilitiesAdapter implements ServerCapabilitiesAdapter {
 			monthly_ai_limit: 0, subscription_status: 'free', remainingAiRequests: null
 		};
 	}
+	async reserveAiRequest(): Promise<boolean> { return false; }
+	async releaseAiRequest(): Promise<void> {}
 	async recordAiUsage(): Promise<void> {}
 }

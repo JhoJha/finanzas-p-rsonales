@@ -25,9 +25,10 @@ plan y consumo. Por ello `DEEPSEEK_API_KEY` no habilita por sí sola la IA.
 Cuando se configure un proveedor de cuotas en una fase posterior, se deberá:
 
 1. consultar capacidades y cuota en una tabla protegida por RLS;
-2. reservar/registrar consumo de forma atómica antes de devolver una propuesta;
+2. reservar una **solicitud** de forma atómica antes de llamar al proveedor y liberarla si este falla;
 3. conservar solo consumo y metadatos mínimos en Supabase, nunca movimientos;
-4. mantener el PIN local independiente de la sesión remota.
+4. conservar los tokens del proveedor solo como telemetría, separados de la cuota por solicitudes;
+5. mantener el PIN local independiente de la sesión remota.
 
 ## Adaptadores
 

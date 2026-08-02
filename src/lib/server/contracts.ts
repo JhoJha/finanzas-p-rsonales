@@ -12,11 +12,16 @@ export interface ServerAuthAdapter {
 
 export interface ServerCapabilitiesAdapter {
 	getCapabilities(userId: string): Promise<CapabilitySnapshot & { remainingAiRequests: number | null }>;
-	recordAiUsage(userId: string, units: number): Promise<void>;
+	/** Reserva una solicitud de IA de forma atómica antes de llamar al proveedor. */
+	reserveAiRequest(userId: string, idempotencyKey: string): Promise<boolean>;
+	/** Libera una reserva que no llegó a invocar al proveedor. */
+	releaseAiRequest(userId: string, idempotencyKey: string): Promise<void>;
+	/** Métrica de telemetría; los tokens no determinan la cuota de solicitudes. */
+	recordAiUsage(userId: string, usage: { providerTokens: number }): Promise<void>;
 }
 
 export interface ServerAiAdapter {
-	createProposal(input: AiRequest & { idempotencyKey: string; now: string }): Promise<{ action: AgentAction; usedUnits: number }>;
+	createProposal(input: AiRequest & { idempotencyKey: string; now: string }): Promise<{ action: AgentAction; providerTokens: number }>;
 }
 
 export interface BackendServices {

@@ -168,7 +168,7 @@
 	}
 
 	function processTranscript() {
-		const nextDrafts = parseSpeechBatch(transcript, financeStore.categories, { date: todayInTimeZone(financeStore.settings.timeZone) });
+		const nextDrafts = parseSpeechBatch(transcript, financeStore.categories, { date: todayInTimeZone(financeStore.settings.timeZone), locale: financeStore.settings.locale });
 		if (!nextDrafts.length) {
 			showToastMsg('No identifiqué montos en el dictado. Puedes corregir el texto e intentarlo otra vez.', 'error');
 			return;
@@ -179,8 +179,10 @@
 		showToastMsg(`${nextDrafts.length} movimiento${nextDrafts.length === 1 ? '' : 's'} listo${nextDrafts.length === 1 ? '' : 's'} para revisar`, 'info');
 	}
 
-	function updateVoiceDraft(id: string, update: Partial<SpeechTransactionDraft>) {
-		voiceDrafts = voiceDrafts.map((draft) => draft.id === id ? { ...draft, ...update } : draft);
+	function updateVoiceDraft(id: string, update: Partial<SpeechTransactionDraft>, resolvedReason?: SpeechTransactionDraft['reviewReasons'][number]) {
+		voiceDrafts = voiceDrafts.map((draft) => draft.id === id
+			? { ...draft, ...update, reviewReasons: resolvedReason ? draft.reviewReasons.filter((reason) => reason !== resolvedReason) : draft.reviewReasons }
+			: draft);
 	}
 
 	function setVoiceDraftType(id: string, nextType: 'income' | 'expense') {
@@ -189,7 +191,7 @@
 			type: nextType,
 			categoryCode: nextType === 'income' ? 'income' : 'food',
 			categoryId: nextCategory?.id || (nextType === 'income' ? '6' : '1')
-		});
+		}, 'type');
 	}
 
 	function removeVoiceDraft(id: string) {
@@ -202,30 +204,43 @@
 		voiceOperationId = null;
 	}
 
+	function isValidVoiceDate(value: string): boolean {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+		const [year, month, day] = value.split('-').map(Number);
+		const date = new Date(year, month - 1, day);
+		return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+	}
+
 	function confirmVoiceBatch() {
 		if (!voiceOperationId || !voiceDrafts.length || isConfirmingVoiceBatch) return;
 		isConfirmingVoiceBatch = true;
-		const batch: Transaction[] = voiceDrafts.map((draft) => ({
-			id: crypto.randomUUID(),
-			date: dateTimeFromDateOnly(draft.date, financeStore.settings.timeZone),
-			amount: Number(draft.amount),
-			categoryId: draft.categoryId,
-			accountId,
-			note: draft.note.trim() || undefined,
-			type: draft.type
-		}));
-		const saved = financeStore.addTransactionBatch(batch, voiceOperationId);
-		isConfirmingVoiceBatch = false;
-		if (!saved) {
-			showToastMsg('No se pudo guardar el lote. Revisa los movimientos antes de confirmar.', 'error');
-			return;
+		try {
+			if (!financeStore.accounts.some((account) => account.id === accountId)) throw new Error('Selecciona una cuenta válida.');
+			if (voiceDrafts.some((draft) => draft.reviewReasons.length > 0)) throw new Error('Confirma el tipo y la categoría marcados antes de guardar.');
+			if (voiceDrafts.some((draft) => !Number.isFinite(Number(draft.amount)) || Number(draft.amount) <= 0 || !isValidVoiceDate(draft.date) || !categories.some((category) => category.id === draft.categoryId && category.type === draft.type))) {
+				throw new Error('Revisa monto, categoría y fecha de cada movimiento.');
+			}
+			const batch: Transaction[] = voiceDrafts.map((draft) => ({
+				id: crypto.randomUUID(),
+				date: dateTimeFromDateOnly(draft.date, financeStore.settings.timeZone),
+				amount: Number(draft.amount),
+				categoryId: draft.categoryId,
+				accountId,
+				note: draft.note.trim() || undefined,
+				type: draft.type
+			}));
+			if (!financeStore.addTransactionBatch(batch, voiceOperationId)) throw new Error('No se pudo guardar el lote. Revisa los movimientos antes de confirmar.');
+			savedVoiceBatchCount = batch.length;
+			voiceDrafts = [];
+			voiceOperationId = null;
+			transcript = '';
+			vibrate(20);
+			showToastMsg(`${batch.length} movimiento${batch.length === 1 ? '' : 's'} guardado${batch.length === 1 ? '' : 's'}`, 'success');
+		} catch (error) {
+			showToastMsg(error instanceof Error ? error.message : 'No se pudo preparar el lote.', 'error');
+		} finally {
+			isConfirmingVoiceBatch = false;
 		}
-		savedVoiceBatchCount = batch.length;
-		voiceDrafts = [];
-		voiceOperationId = null;
-		transcript = '';
-		vibrate(20);
-		showToastMsg(`${batch.length} movimiento${batch.length === 1 ? '' : 's'} guardado${batch.length === 1 ? '' : 's'}`, 'success');
 	}
 
 	function undoVoiceBatch() {
@@ -343,6 +358,9 @@
 							<p class="text-sm font-semibold" style="color: var(--color-text);">Movimiento detectado</p>
 							<button onclick={() => removeVoiceDraft(draft.id)} aria-label="Quitar movimiento" class="rounded-lg p-1.5" style="color: var(--color-danger);"><X size={16} /></button>
 						</div>
+						{#if draft.reviewReasons.length}
+							<p class="mb-3 rounded-lg p-2 text-xs font-medium" style="background-color: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface)); color: var(--color-text);">Confirma {draft.reviewReasons.includes('type') ? 'el tipo' : ''}{draft.reviewReasons.includes('type') && draft.reviewReasons.includes('category') ? ' y ' : ''}{draft.reviewReasons.includes('category') ? 'la categoría' : ''}: la transcripción no pudo inferirlo con seguridad.</p>
+						{/if}
 						<div class="grid grid-cols-2 gap-3">
 							<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Tipo
 								<select value={draft.type} onchange={(event) => setVoiceDraftType(draft.id, (event.currentTarget as HTMLSelectElement).value as 'income' | 'expense')} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);">
@@ -354,7 +372,7 @@
 								<input type="number" min="0.01" step="0.01" value={draft.amount} oninput={(event) => updateVoiceDraft(draft.id, { amount: Number((event.currentTarget as HTMLInputElement).value) })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
 							</label>
 							<label class="col-span-2 text-xs font-medium" style="color: var(--color-text-secondary);">Categoría
-								<select value={draft.categoryId} onchange={(event) => updateVoiceDraft(draft.id, { categoryId: (event.currentTarget as HTMLSelectElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);">
+								<select value={draft.categoryId} onchange={(event) => updateVoiceDraft(draft.id, { categoryId: (event.currentTarget as HTMLSelectElement).value }, 'category')} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);">
 									{#each categories.filter((category) => category.type === draft.type && !category.id.startsWith('__')) as category}
 										<option value={category.id}>{categoryDisplayName(category, financeStore.settings.locale)}</option>
 									{/each}

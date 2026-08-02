@@ -17,7 +17,7 @@ describe('server adapters', () => {
 			idempotencyKey: 'c03660fc-2c2a-4fcd-ac6e-0dfcd8c790f3', now: '2026-08-01T12:00:00.000Z'
 		});
 
-		expect(result.usedUnits).toBe(42);
+		expect(result.providerTokens).toBe(42);
 		expect(result.action).toMatchObject({ operation: 'propose', requiresConfirmation: false, idempotencyKey: 'c03660fc-2c2a-4fcd-ac6e-0dfcd8c790f3' });
 		expect(fetchFn).toHaveBeenCalledWith('https://api.example.test/chat/completions', expect.objectContaining({ headers: expect.objectContaining({ authorization: 'Bearer test-key' }) }));
 	});

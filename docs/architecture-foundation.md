@@ -30,16 +30,16 @@ No hay Supabase, proveedor de IA, pagos ni Google Drive integrados. Por tanto no
 4. Categorías conservan sus IDs actuales para no romper relaciones. Las categorías conocidas reciben un `code` canónico estable (`food`, `transport`, `income`, etc.); las personalizadas no se adivinan ni se renombran.
 5. La configuración incorpora `locale` y `timeZone` estructurales. El valor inicial es `es-PE` y `America/Lima`; `baseCurrency` se mantiene separado y usa ISO 4217.
 
-## Migración v7
+## Migración v7 y v8
 
 La migración es ascendente e idempotente. Para snapshots v6 o anteriores:
 
 - agrega `code` a las categorías predeterminadas conocidas sin modificar IDs ni nombres;
 - agrega `locale: es-PE` y `timeZone: America/Lima` cuando faltan;
 - conserva todos los movimientos, importes, fechas ISO, cuentas y relaciones;
-- serializa el resultado como versión 7 únicamente después de validarlo.
+- serializa el resultado como versión 7 y luego versión 8 únicamente después de validarlo.
 
-Los respaldos anteriores siguen siendo aceptados. Un snapshot de versión futura se rechaza antes de normalizarlo. No se elimina ninguna clave heredada durante esta fase.
+La migración v8 agrega la categoría predeterminada `uncategorized` ("Por clasificar") cuando falta. Los respaldos anteriores siguen siendo aceptados. Un snapshot de versión futura se rechaza antes de normalizarlo. No se elimina ninguna clave heredada durante esta fase.
 
 ## Brechas frente a la visión objetivo
 

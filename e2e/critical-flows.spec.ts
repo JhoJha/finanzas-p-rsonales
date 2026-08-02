@@ -50,6 +50,12 @@ test('revisa, confirma y deshace un lote generado desde dictado', async ({ page 
 	await page.getByTestId('voice-record').click();
 	await expect(page.getByText('Revisa antes de guardar', { exact: true })).toBeVisible();
 	await expect(page.getByText('Movimiento detectado', { exact: true })).toHaveCount(3);
+	const firstVoiceDate = page.locator('input[type="date"]').first();
+	await firstVoiceDate.fill('');
+	await page.getByTestId('voice-confirm').click();
+	await expect(page.getByText('Revisa monto, categoría y fecha de cada movimiento.', { exact: true })).toBeVisible();
+	await expect(page.getByTestId('voice-confirm')).toBeEnabled();
+	await firstVoiceDate.fill('2026-08-01');
 	await page.getByTestId('voice-confirm').click();
 	await expect(page.getByText('Se guardaron 3 movimientos.', { exact: true })).toBeVisible();
 	await page.getByTestId('voice-undo').click();

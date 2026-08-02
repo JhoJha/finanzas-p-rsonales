@@ -17,12 +17,20 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!(input.data.source === 'voice' ? capabilities.voice_ai : capabilities.chatbot)) return privateApiError(403, 'CAPABILITY_UNAVAILABLE');
 	if (capabilities.remainingAiRequests !== null && capabilities.remainingAiRequests <= 0) return privateApiError(429, 'QUOTA_EXHAUSTED');
 	if (!services.ai) return privateApiError(503, 'SERVICE_UNAVAILABLE');
+	const idempotencyKey = crypto.randomUUID();
+	try {
+		if (!await services.capabilities.reserveAiRequest(identity.userId, idempotencyKey)) return privateApiError(429, 'QUOTA_EXHAUSTED');
+	} catch {
+		return privateApiError(503, 'SERVICE_UNAVAILABLE');
+	}
 
 	try {
-		const result = await services.ai.createProposal({ ...input.data, idempotencyKey: crypto.randomUUID(), now: new Date().toISOString() });
-		await services.capabilities.recordAiUsage(identity.userId, result.usedUnits);
+		const result = await services.ai.createProposal({ ...input.data, idempotencyKey, now: new Date().toISOString() });
+		// Los tokens son telemetría. La cuota reservada y expuesta es siempre por solicitud.
+		void services.capabilities.recordAiUsage(identity.userId, { providerTokens: result.providerTokens }).catch(() => undefined);
 		return json(AiProposalResponseSchema.parse({ action: result.action, remainingQuota: capabilities.remainingAiRequests === null ? null : capabilities.remainingAiRequests - 1 }), { headers: privateApiHeaders });
 	} catch {
+		await services.capabilities.releaseAiRequest(identity.userId, idempotencyKey).catch(() => undefined);
 		return privateApiError(503, 'SERVICE_UNAVAILABLE');
 	}
 };
