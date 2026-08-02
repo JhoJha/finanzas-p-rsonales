@@ -53,7 +53,7 @@ Los respaldos anteriores siguen siendo aceptados. Un snapshot de versión futura
 ## Plan por fases y dependencias
 
 1. **Fase 1 (completada):** códigos canónicos de categoría, `locale`, `timeZone`, utilidades de dinero/fecha, migración v7, selector de región y formatos/categorías traducibles sin cambiar datos existentes.
-2. **Fase 2:** rutas privadas de SvelteKit y contratos/adaptadores para identidad, IA, capacidades y cuotas; configuración server-side documentada en `.env.example`.
+2. **Fase 2 (completada):** rutas privadas de SvelteKit, contratos/adaptadores para identidad, IA, capacidades y cuotas, con configuración server-side segura y estado deshabilitado por defecto.
 3. **Fase 3:** captura por voz como lote editable, confirmación y deshacer basado en una acción local registrada.
 4. **Fase 4:** orquestador de intenciones y herramientas de solo lectura, simulación, propuesta y ejecución confirmada.
 5. **Fase 5:** respaldo cifrado del lado cliente en `drive.appdata`, restauración versionada, integridad y recuperación.

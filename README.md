@@ -27,6 +27,14 @@ npm test
 npm run build
 ```
 
+## Servicios remotos opcionales
+
+La aplicación funciona sin servicios remotos. La API privada de preparación para
+Supabase y DeepSeek está desactivada por defecto y no guarda movimientos fuera de
+IndexedDB. Copia `.env.example` a `.env` únicamente al configurar identidad,
+cuotas y procesamiento de IA; nunca expongas `DEEPSEEK_API_KEY` con `VITE_`.
+Los detalles de las rutas y adaptadores están en [`docs/phase-2-api.md`](docs/phase-2-api.md).
+
 ## Consideraciones sobre datos
 
 - Introduce cada movimiento en la moneda de su cuenta. La conversión ocurre solo en los reportes globales.
