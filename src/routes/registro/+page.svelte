@@ -3,9 +3,9 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { vibrate } from '$lib/utils/haptics';
 	import { goto } from '$app/navigation';
-	import { TransactionSchema, type Category } from '$lib/schema';
-	import { Mic, MicOff, Save, Plus, X } from '@lucide/svelte';
-	import { parseSpeech } from '$lib/utils/speechParser';
+	import { TransactionSchema, type Category, type Transaction } from '$lib/schema';
+	import { Mic, MicOff, Save, Plus, X, Undo2 } from '@lucide/svelte';
+	import { parseSpeechBatch, type SpeechTransactionDraft } from '$lib/utils/speechParser';
 	import { categoryDisplayName } from '$lib/i18n';
 	import { dateTimeFromDateOnly, todayInTimeZone } from '$lib/utils/date';
 
@@ -18,16 +18,23 @@
 	let note = $state('');
 	let txDate = $state(todayInTimeZone(financeStore.settings.timeZone)); // YYYY-MM-DD, por defecto hoy
 	let isRecording = $state(false);
+	let activeRecognition = $state<any>(null);
 	let dictationResult = $state('');
+	let transcript = $state('');
+	let voiceDrafts = $state<SpeechTransactionDraft[]>([]);
+	let voiceOperationId = $state<string | null>(null);
+	let isConfirmingVoiceBatch = $state(false);
+	let savedVoiceBatchCount = $state(0);
 	let selectedAccount = $derived(financeStore.accounts.find((account) => account.id === accountId));
 	let selectedDestinationAccount = $derived(financeStore.accounts.find((account) => account.id === toAccountId));
+	let maxTransactionDate = $derived(todayInTimeZone(financeStore.settings.timeZone));
 
 	// Categoría personalizada
 	let showNewCategory = $state(false);
 	let newCatName = $state('');
 
 
-	const categories = financeStore.categories;
+	let categories = $derived(financeStore.categories);
 
 	function showToastMsg(msg: string, type: 'success' | 'error' | 'info' = 'success') {
 		toastStore.add(msg, type);
@@ -113,7 +120,7 @@
 			return;
 		}
 
-		financeStore.addTransaction(parsed.data);
+		if (!financeStore.addTransaction(parsed.data)) return;
 		
 		vibrate(15);
 		
@@ -160,7 +167,78 @@
 		showNewCategory = false;
 	}
 
+	function processTranscript() {
+		const nextDrafts = parseSpeechBatch(transcript, financeStore.categories, { date: todayInTimeZone(financeStore.settings.timeZone) });
+		if (!nextDrafts.length) {
+			showToastMsg('No identifiqué montos en el dictado. Puedes corregir el texto e intentarlo otra vez.', 'error');
+			return;
+		}
+		voiceDrafts = nextDrafts;
+		voiceOperationId = crypto.randomUUID();
+		savedVoiceBatchCount = 0;
+		showToastMsg(`${nextDrafts.length} movimiento${nextDrafts.length === 1 ? '' : 's'} listo${nextDrafts.length === 1 ? '' : 's'} para revisar`, 'info');
+	}
+
+	function updateVoiceDraft(id: string, update: Partial<SpeechTransactionDraft>) {
+		voiceDrafts = voiceDrafts.map((draft) => draft.id === id ? { ...draft, ...update } : draft);
+	}
+
+	function setVoiceDraftType(id: string, nextType: 'income' | 'expense') {
+		const nextCategory = categories.find((category) => category.type === nextType && !category.id.startsWith('__'));
+		updateVoiceDraft(id, {
+			type: nextType,
+			categoryCode: nextType === 'income' ? 'income' : 'food',
+			categoryId: nextCategory?.id || (nextType === 'income' ? '6' : '1')
+		});
+	}
+
+	function removeVoiceDraft(id: string) {
+		voiceDrafts = voiceDrafts.filter((draft) => draft.id !== id);
+		if (!voiceDrafts.length) voiceOperationId = null;
+	}
+
+	function cancelVoiceReview() {
+		voiceDrafts = [];
+		voiceOperationId = null;
+	}
+
+	function confirmVoiceBatch() {
+		if (!voiceOperationId || !voiceDrafts.length || isConfirmingVoiceBatch) return;
+		isConfirmingVoiceBatch = true;
+		const batch: Transaction[] = voiceDrafts.map((draft) => ({
+			id: crypto.randomUUID(),
+			date: dateTimeFromDateOnly(draft.date, financeStore.settings.timeZone),
+			amount: Number(draft.amount),
+			categoryId: draft.categoryId,
+			accountId,
+			note: draft.note.trim() || undefined,
+			type: draft.type
+		}));
+		const saved = financeStore.addTransactionBatch(batch, voiceOperationId);
+		isConfirmingVoiceBatch = false;
+		if (!saved) {
+			showToastMsg('No se pudo guardar el lote. Revisa los movimientos antes de confirmar.', 'error');
+			return;
+		}
+		savedVoiceBatchCount = batch.length;
+		voiceDrafts = [];
+		voiceOperationId = null;
+		transcript = '';
+		vibrate(20);
+		showToastMsg(`${batch.length} movimiento${batch.length === 1 ? '' : 's'} guardado${batch.length === 1 ? '' : 's'}`, 'success');
+	}
+
+	function undoVoiceBatch() {
+		if (!financeStore.undoLastAddedTransactionBatch()) return;
+		showToastMsg(`${savedVoiceBatchCount} movimiento${savedVoiceBatchCount === 1 ? '' : 's'} revertido${savedVoiceBatchCount === 1 ? '' : 's'}`, 'info');
+		savedVoiceBatchCount = 0;
+	}
+
 	function startRecording() {
+		if (isRecording) {
+			activeRecognition?.stop();
+			return;
+		}
 		if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
 			showToastMsg('Tu navegador no soporta voz', 'error');
 			return;
@@ -170,20 +248,16 @@
 		dictationResult = '🎙️ Escuchando...';
 		const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 		const recognition = new SpeechRecognition();
+		activeRecognition = recognition;
 
-		recognition.lang = 'es-ES';
+		recognition.lang = financeStore.settings.locale;
 		recognition.interimResults = false;
 		recognition.maxAlternatives = 1;
 
 		recognition.onresult = (event: any) => {
-			const transcript = event.results[0][0].transcript;
+			transcript = event.results[0][0].transcript;
 			dictationResult = `✓ "${transcript}"`;
-
-		const parsed = parseSpeech(transcript, financeStore.categories);
-			if (parsed.amount) amount = parsed.amount.toString();
-			categoryId = parsed.categoryId;
-			type = parsed.type;
-			note = transcript;
+			processTranscript();
 			
 			vibrate(15);
 			toastStore.add('Voz procesada', 'info');
@@ -191,11 +265,13 @@
 
 		recognition.onerror = () => {
 			isRecording = false;
+			activeRecognition = null;
 			dictationResult = '❌ Error al escuchar';
 		};
 
 		recognition.onend = () => {
 			isRecording = false;
+			activeRecognition = null;
 		};
 
 		recognition.start();
@@ -211,8 +287,10 @@
 			Presiona para dictar <br />
 			<span class="font-medium" style="color: var(--color-text);">"Gasté 15 soles en almuerzo"</span>
 		</p>
+		<p class="mb-4 text-xs" style="color: var(--color-text-secondary);">El reconocimiento lo proporciona tu navegador; la aplicación no envía la transcripción a servicios externos.</p>
 		<button
 			onclick={startRecording}
+			data-testid="voice-record"
 			class="mx-auto flex h-20 w-20 items-center justify-center rounded-full text-white shadow-lg transition-transform active:scale-90"
 			style="background-color: {isRecording ? 'var(--color-danger)' : 'var(--color-primary)'};"
 			class:animate-pulse={isRecording}
@@ -230,6 +308,82 @@
 			</p>
 		{/if}
 	</div>
+
+	{#if transcript}
+		<div class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface);">
+			<label for="voice-transcript" class="block text-sm font-semibold" style="color: var(--color-text);">Transcripción</label>
+			<textarea id="voice-transcript" data-testid="voice-transcript" bind:value={transcript} rows="2" class="mt-2 w-full rounded-xl p-3 text-sm outline-none focus:ring-2" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"></textarea>
+			<div class="mt-3 flex gap-2">
+				<button onclick={processTranscript} data-testid="voice-process" class="rounded-xl px-4 py-2 text-sm font-semibold text-white" style="background-color: var(--color-primary);">Procesar texto</button>
+				<p class="self-center text-xs" style="color: var(--color-text-secondary);">Se procesa en este dispositivo; no se guarda hasta confirmar.</p>
+			</div>
+		</div>
+	{/if}
+
+	{#if voiceDrafts.length}
+		<section class="rounded-2xl p-5 shadow-sm" style="background-color: var(--color-surface); border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border));">
+			<div class="mb-4">
+				<h2 class="text-lg font-semibold" style="color: var(--color-text);">Revisa antes de guardar</h2>
+				<p class="mt-1 text-sm" style="color: var(--color-text-secondary);">Edita cada movimiento detectado. Nada cambiará tus saldos hasta que confirmes.</p>
+			</div>
+
+			<div class="mb-4">
+				<label for="voice-account" class="block text-xs font-medium" style="color: var(--color-text-secondary);">Cuenta para este lote</label>
+				<select id="voice-account" bind:value={accountId} class="mt-1 w-full rounded-xl p-3 text-sm outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
+					{#each financeStore.accounts as acc}
+						<option value={acc.id}>{acc.name} ({financeStore.formatCurrency(acc.balance, acc.currency)})</option>
+					{/each}
+				</select>
+			</div>
+
+			<div class="space-y-3">
+				{#each voiceDrafts as draft (draft.id)}
+					<div class="rounded-xl p-4" style="background-color: var(--color-bg); border: 1px solid var(--color-border);">
+						<div class="mb-3 flex items-center justify-between gap-3">
+							<p class="text-sm font-semibold" style="color: var(--color-text);">Movimiento detectado</p>
+							<button onclick={() => removeVoiceDraft(draft.id)} aria-label="Quitar movimiento" class="rounded-lg p-1.5" style="color: var(--color-danger);"><X size={16} /></button>
+						</div>
+						<div class="grid grid-cols-2 gap-3">
+							<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Tipo
+								<select value={draft.type} onchange={(event) => setVoiceDraftType(draft.id, (event.currentTarget as HTMLSelectElement).value as 'income' | 'expense')} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);">
+									<option value="expense">Gasto</option>
+									<option value="income">Ingreso</option>
+								</select>
+							</label>
+							<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Monto
+								<input type="number" min="0.01" step="0.01" value={draft.amount} oninput={(event) => updateVoiceDraft(draft.id, { amount: Number((event.currentTarget as HTMLInputElement).value) })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+							</label>
+							<label class="col-span-2 text-xs font-medium" style="color: var(--color-text-secondary);">Categoría
+								<select value={draft.categoryId} onchange={(event) => updateVoiceDraft(draft.id, { categoryId: (event.currentTarget as HTMLSelectElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);">
+									{#each categories.filter((category) => category.type === draft.type && !category.id.startsWith('__')) as category}
+										<option value={category.id}>{categoryDisplayName(category, financeStore.settings.locale)}</option>
+									{/each}
+								</select>
+							</label>
+							<label class="col-span-2 text-xs font-medium" style="color: var(--color-text-secondary);">Detalle
+								<input type="text" value={draft.note} oninput={(event) => updateVoiceDraft(draft.id, { note: (event.currentTarget as HTMLInputElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+							</label>
+							<label class="col-span-2 text-xs font-medium" style="color: var(--color-text-secondary);">Fecha
+								<input type="date" value={draft.date} max={maxTransactionDate} onchange={(event) => updateVoiceDraft(draft.id, { date: (event.currentTarget as HTMLInputElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+							</label>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<div class="mt-5 flex gap-3">
+				<button onclick={confirmVoiceBatch} data-testid="voice-confirm" disabled={isConfirmingVoiceBatch} class="flex flex-1 items-center justify-center gap-2 rounded-xl py-3 font-semibold text-white disabled:opacity-50" style="background-color: var(--color-primary);"><Save size={18} /> Confirmar {voiceDrafts.length}</button>
+				<button onclick={cancelVoiceReview} class="rounded-xl px-4 py-3 text-sm font-semibold" style="background-color: var(--color-bg); color: var(--color-text-secondary); border: 1px solid var(--color-border);">Cancelar</button>
+			</div>
+		</section>
+	{/if}
+
+	{#if savedVoiceBatchCount > 0}
+		<div class="flex items-center justify-between gap-3 rounded-2xl p-4" style="background-color: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));">
+			<p class="text-sm font-medium" style="color: var(--color-text);">Se guardaron {savedVoiceBatchCount} movimiento{savedVoiceBatchCount === 1 ? '' : 's'}.</p>
+			<button onclick={undoVoiceBatch} data-testid="voice-undo" class="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold" style="color: var(--color-primary);"><Undo2 size={16} /> Deshacer</button>
+		</div>
+	{/if}
 
 	<!-- Form UI -->
 	<div class="rounded-2xl p-6 shadow-sm" style="background-color: var(--color-surface);">
@@ -413,7 +567,7 @@
 				<input id="a11y-5"
 					type="date"
 					bind:value={txDate}
-					max={new Date().toISOString().split('T')[0]}
+					max={maxTransactionDate}
 					class="mt-1 w-full rounded-xl p-3.5 text-sm outline-none transition-all focus:ring-2"
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border); color-scheme: {document?.documentElement?.classList?.contains('dark') ? 'dark' : 'light'};"
 				/>

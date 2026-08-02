@@ -49,6 +49,8 @@ export class FinanceStoreFacade {
 	persistenceError = $state<string | undefined>(undefined);
 	recoveryRequired = $state(false);
 	private lastDeletedTransaction: Transaction | null = null;
+	private lastAddedTransactionBatch: Transaction[] | null = null;
+	private completedBatchOperationIds = new Set<string>();
 	private backupTimer: ReturnType<typeof setTimeout> | undefined;
 	private persistenceQueue: Promise<void> = Promise.resolve();
 	private exchangeRateRefreshInFlight: Promise<ExchangeRateRefreshResult> | null = null;
@@ -274,25 +276,77 @@ export class FinanceStoreFacade {
 	}
 
 	// === Transactions ===
-	addTransaction(transaction: Transaction): boolean {
+	private prepareTransaction(transaction: Transaction): Transaction | null {
 		const sourceAccount = this.accounts.find((account) => account.id === transaction.accountId);
 		const destinationAccount = transaction.toAccountId ? this.accounts.find((account) => account.id === transaction.toAccountId) : undefined;
 		const missingRate = [sourceAccount, destinationAccount].find((account) => account?.currency && account.currency.toUpperCase() !== this.settings.baseCurrency && !this.settings.exchangeRates[account.currency.toUpperCase()]);
-		if (missingRate) { toastStore.add(`Falta la tasa de cambio para ${missingRate.currency}.`, 'error'); return false; }
+		if (missingRate) { toastStore.add(`Falta la tasa de cambio para ${missingRate.currency}.`, 'error'); return null; }
 		const parsed = TransactionSchema.safeParse(this.snapshotExchangeRate(transaction));
-		if (!parsed.success || !this.accounts.some((account) => account.id === parsed.data.accountId) || (parsed.data.type !== 'transfer' && !this.categories.some((category) => category.id === parsed.data.categoryId && category.type === parsed.data.type)) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some((account) => account.id === parsed.data.toAccountId))) || !this.canApplyLinkedTransaction(parsed.data)) {
+		if (!parsed.success || !this.accounts.some((account) => account.id === parsed.data.accountId) || (parsed.data.type !== 'transfer' && !this.categories.some((category) => category.id === parsed.data.categoryId && category.type === parsed.data.type)) || (parsed.data.type === 'transfer' && (!parsed.data.toAccountId || parsed.data.toAccountId === parsed.data.accountId || !this.accounts.some((account) => account.id === parsed.data.toAccountId)))) {
 			toastStore.add('La transacción no es válida.', 'error');
-			return false;
+			return null;
 		}
-		this.transactionsStore.addTransaction(parsed.data);
-		this.applyTransactionEffect(parsed.data, 1);
-		this.applyLinkedTransactionEffect(parsed.data, 1);
-		this.invalidateNetWorthSnapshots(parsed.data.date);
+		return parsed.data;
+	}
+
+	addTransaction(transaction: Transaction): boolean {
+		const parsed = this.prepareTransaction(transaction);
+		if (!parsed || !this.canApplyLinkedTransaction(parsed)) return false;
+		this.transactionsStore.addTransaction(parsed);
+		this.applyTransactionEffect(parsed, 1);
+		this.applyLinkedTransactionEffect(parsed, 1);
+		this.invalidateNetWorthSnapshots(parsed.date);
 		this.scheduleAutomaticBackup();
 		return true;
 	}
 
 	/** Importa movimientos validados como una única operación de estado. */
+	/**
+	 * Guarda una revisión de dictado como una operación atómica. El id de operación
+	 * evita un segundo guardado si se repite el mismo gesto de confirmación.
+	 */
+	addTransactionBatch(transactions: Transaction[], operationId: string): boolean {
+		if (!operationId || !transactions.length || this.completedBatchOperationIds.has(operationId)) return false;
+		const ids = new Set<string>();
+		const prepared: Transaction[] = [];
+		for (const transaction of transactions) {
+			if (transaction.debtId || transaction.goalId || transaction.linkedAmount) {
+				toastStore.add('Los movimientos vinculados se registran de uno en uno.', 'error');
+				return false;
+			}
+			if (ids.has(transaction.id) || this.transactions.some((existing) => existing.id === transaction.id)) {
+				toastStore.add('El lote contiene movimientos duplicados.', 'error');
+				return false;
+			}
+			ids.add(transaction.id);
+			const parsed = this.prepareTransaction(transaction);
+			if (!parsed) return false;
+			prepared.push({ ...parsed, timestamp: parsed.timestamp ?? new Date(parsed.date).getTime() });
+		}
+
+		this.transactionsStore.data = [...this.transactionsStore.data, ...prepared];
+		prepared.forEach((transaction) => this.applyTransactionEffect(transaction, 1));
+		this.lastAddedTransactionBatch = prepared;
+		this.completedBatchOperationIds.add(operationId);
+		this.invalidateNetWorthSnapshots(prepared.reduce((earliest, transaction) => transaction.date < earliest ? transaction.date : earliest, prepared[0].date));
+		this.scheduleAutomaticBackup();
+		return true;
+	}
+
+	/** Revierte únicamente el último lote confirmado desde la revisión de voz. */
+	undoLastAddedTransactionBatch(): boolean {
+		if (!this.lastAddedTransactionBatch?.length) return false;
+		const ids = new Set(this.lastAddedTransactionBatch.map((transaction) => transaction.id));
+		if (!this.lastAddedTransactionBatch.every((transaction) => this.transactions.some((current) => current.id === transaction.id))) return false;
+		const earliest = this.lastAddedTransactionBatch.reduce((value, transaction) => transaction.date < value ? transaction.date : value, this.lastAddedTransactionBatch[0].date);
+		this.lastAddedTransactionBatch.forEach((transaction) => this.applyTransactionEffect(transaction, -1));
+		this.transactionsStore.data = this.transactionsStore.data.filter((transaction) => !ids.has(transaction.id));
+		this.lastAddedTransactionBatch = null;
+		this.invalidateNetWorthSnapshots(earliest);
+		this.scheduleAutomaticBackup();
+		return true;
+	}
+
 	importTransactions(rows: ImportRow[], accountId: string): { imported: number; skipped: number } {
 		if (!this.accounts.some((account) => account.id === accountId)) throw new Error('Selecciona una cuenta válida.');
 		const existing = new Set(this.transactions.map((transaction) => {

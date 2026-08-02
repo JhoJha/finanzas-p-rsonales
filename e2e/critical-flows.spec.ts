@@ -26,6 +26,36 @@ test('registra un gasto y lo refleja en el inicio', async ({ page }) => {
 	await expect(page.getByText('Almuerzo de prueba', { exact: true })).toBeVisible();
 });
 
+test('revisa, confirma y deshace un lote generado desde dictado', async ({ page }) => {
+	await page.addInitScript(() => {
+		class MockSpeechRecognition {
+			lang = '';
+			interimResults = false;
+			maxAlternatives = 1;
+			onresult: ((event: unknown) => void) | null = null;
+			onerror: (() => void) | null = null;
+			onend: (() => void) | null = null;
+			start() {
+				queueMicrotask(() => {
+					this.onresult?.({ results: [[{ transcript: 'Hoy gasté 30 soles en hotel, 12 en comida y 20 en pasajes.' }]] });
+					this.onend?.();
+				});
+			}
+			stop() { this.onend?.(); }
+		}
+		Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: MockSpeechRecognition });
+	});
+
+	await page.goto('/registro');
+	await page.getByTestId('voice-record').click();
+	await expect(page.getByText('Revisa antes de guardar', { exact: true })).toBeVisible();
+	await expect(page.getByText('Movimiento detectado', { exact: true })).toHaveCount(3);
+	await page.getByTestId('voice-confirm').click();
+	await expect(page.getByText('Se guardaron 3 movimientos.', { exact: true })).toBeVisible();
+	await page.getByTestId('voice-undo').click();
+	await expect(page.getByText('Se guardaron 3 movimientos.', { exact: true })).not.toBeVisible();
+});
+
 test('guarda una transferencia con importe de destino en otra moneda', async ({ page }) => {
 	await createUsdAccount(page);
 	await page.goto('/registro');
