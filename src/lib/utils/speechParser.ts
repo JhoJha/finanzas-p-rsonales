@@ -1,6 +1,8 @@
-import { defaultCategories, type Category } from '../schema';
+import { defaultCategories, type Category, type PersonalClassificationRule } from '../schema';
 import { categoryCodeForLegacyId, type CategoryCode } from '$lib/domain/category-codes';
 import { dateFromDateOnly, formatDateOnly } from '$lib/utils/date';
+import { findLearnedRule } from '$lib/domain/classification-rules';
+import { regionalCategoryMatch, type RegionalPackId } from '$lib/domain/regional-packs';
 
 export type SpeechReviewReason = 'type' | 'category';
 
@@ -13,6 +15,13 @@ export type SpeechTransactionDraft = {
 	note: string;
 	date: string;
 	reviewReasons: SpeechReviewReason[];
+	subcategory?: string;
+	merchant?: string;
+	location?: string;
+	counterparty?: string;
+	incomeSource?: 'salary' | 'sales' | 'gift' | 'refund' | 'loan' | 'client' | 'other';
+	explanation: string[];
+	learnRule?: boolean;
 };
 
 type ParserLocale = 'es-PE' | 'en-US';
@@ -46,12 +55,20 @@ const language = {
 		expense: ['gaste', 'pague', 'compre', 'costo', 'debite'],
 		yesterday: ['ayer'],
 		categories: {
-			food: ['comida', 'almuerzo', 'desayuno', 'cena', 'restaurante', 'pizza', 'hamburguesa', 'supermercado', 'mercado', 'cafe', 'pan', 'queso', 'helado'],
+			food: ['comida', 'almuerzo', 'desayuno', 'cena', 'restaurante', 'pizza', 'hamburguesa', 'supermercado', 'mercado', 'cafe', 'pan', 'queso', 'helado', 'panaderia', 'palta', 'cuates', 'alita broaster'],
 			transport: ['pasaje', 'pasajes', 'taxi', 'transporte', 'bus', 'gasolina', 'uber', 'tren', 'metro', 'moto', 'mototaxi'],
 			housing: ['alquiler', 'luz', 'agua', 'internet', 'casa', 'mantenimiento', 'hotel', 'hospedaje'],
 			education: ['colegio', 'universidad', 'curso', 'libro', 'cuaderno', 'pension'],
 			entertainment: ['cine', 'juego', 'salida', 'cerveza', 'fiesta', 'ocio', 'entretenimiento'],
-			subscriptions: ['netflix', 'spotify', 'chatgpt', 'openai', 'youtube premium', 'disney', 'hbo', 'amazon prime', 'prime video']
+			subscriptions: ['netflix', 'spotify', 'chatgpt', 'openai', 'youtube premium', 'disney', 'hbo', 'amazon prime', 'prime video'],
+			health: ['medicina', 'medicamento', 'farmacia', 'doctor', 'consulta', 'dental', 'hospital'],
+			personal_care: ['perfume', 'shampoo', 'barberia', 'peluqueria', 'maquillaje', 'cosmetico'],
+			clothing: ['ropa', 'polo', 'camisa', 'zapatilla', 'zapato', 'pantalon'],
+			gifts_family: ['regalo', 'familia', 'cumpleanos'],
+			pets: ['mascota', 'perro', 'gato', 'veterinaria', 'croquetas'],
+			taxes: ['impuesto', 'sunat', 'tributo'],
+			fees: ['comision', 'mantenimiento bancario'],
+			business: ['portaminas', 'oficina', 'cliente', 'proveedor', 'negocio']
 		}
 	},
 	'en-US': {
@@ -64,7 +81,15 @@ const language = {
 			housing: ['rent', 'electricity', 'water', 'internet', 'home', 'maintenance', 'hotel', 'lodging'],
 			education: ['school', 'university', 'course', 'book', 'notebook', 'tuition'],
 			entertainment: ['movie', 'game', 'outing', 'beer', 'party', 'leisure', 'entertainment'],
-			subscriptions: ['netflix', 'spotify', 'chatgpt', 'openai', 'youtube premium', 'disney', 'hbo', 'amazon prime', 'prime video']
+			subscriptions: ['netflix', 'spotify', 'chatgpt', 'openai', 'youtube premium', 'disney', 'hbo', 'amazon prime', 'prime video'],
+			health: ['medicine', 'pharmacy', 'doctor', 'hospital', 'dentist'],
+			personal_care: ['perfume', 'shampoo', 'barber', 'makeup', 'cosmetic'],
+			clothing: ['clothes', 'shirt', 'shoes', 'pants'],
+			gifts_family: ['gift', 'family', 'birthday'],
+			pets: ['pet', 'dog', 'cat', 'vet'],
+			taxes: ['tax', 'irs'],
+			fees: ['fee', 'commission'],
+			business: ['office', 'client', 'supplier', 'business']
 		}
 	}
 } as const;
@@ -91,13 +116,61 @@ function lastActionIn(text: string, locale: ParserLocale): ActionType | null {
 	return lastIncome > lastExpense ? 'income' : 'expense';
 }
 
-function categoryCodeForText(text: string, type: ActionType, locale: ParserLocale): CategoryCode | null {
-	if (type === 'income') return 'income';
+function categoryMatchForText(text: string, type: ActionType, locale: ParserLocale): { code: CategoryCode; keyword: string } | null {
+	if (type === 'income') return { code: 'income', keyword: locale === 'es-PE' ? 'ingreso' : 'income' };
 	const value = normalized(text);
 	for (const [code, keywords] of Object.entries(language[locale].categories) as [Exclude<CategoryCode, 'income' | 'debt_payment' | 'savings' | 'uncategorized'>, readonly string[]][]) {
-		if (keywords.some((keyword) => value.includes(keyword))) return code;
+		const keyword = keywords.find((item) => value.includes(item));
+		if (keyword) return { code, keyword };
 	}
 	return null;
+}
+
+function categoryCodeForText(text: string, type: ActionType, locale: ParserLocale): CategoryCode | null {
+	const match = categoryMatchForText(text, type, locale);
+	return match?.code ?? null;
+}
+
+function titleCase(value: string): string {
+	return value.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+}
+
+function merchantForText(text: string, locale: ParserLocale): string | undefined {
+	const source = text.replace(/\s+/g, ' ').trim();
+	const match = locale === 'es-PE'
+		? /\b(?:en|del|de la)\s+(?:el |la )?([\p{L}\d][\p{L}\d .'-]{1,70}?)(?=$|[,.;])/iu.exec(source)
+		: /\b(?:at|from)\s+(?:the )?([\p{L}\d][\p{L}\d .'-]{1,70}?)(?=$|[,.;])/iu.exec(source);
+	if (!match) return undefined;
+	const candidate = match[1].replace(/\b(?:para|por|for)\b.*$/iu, '').trim();
+	return candidate.length >= 2 ? titleCase(candidate) : undefined;
+}
+
+function counterpartyForText(text: string, locale: ParserLocale): string | undefined {
+	const match = locale === 'es-PE'
+		? /\b(?:mi\s+)?([\p{L}][\p{L}'-]{1,40})\s+me\s+(?:dio|dieron|pago|pag[oó])/iu.exec(text)
+		: /\b(?:my\s+)?([\p{L}][\p{L}'-]{1,40})\s+(?:gave|paid)\s+me\b/iu.exec(text);
+	return match ? titleCase(match[1]) : undefined;
+}
+
+function subcategoryForText(text: string, code: CategoryCode): string | undefined {
+	const value = normalized(text);
+	if (code === 'food') {
+		if (/(pan|panaderia)/.test(value)) return 'Panadería';
+		if (/(restaurante|pizza|hamburguesa|alita broaster)/.test(value)) return 'Restaurante';
+		if (/(supermercado|mercado|bodega)/.test(value)) return 'Supermercado';
+	}
+	return undefined;
+}
+
+function incomeSourceForText(text: string, locale: ParserLocale): SpeechTransactionDraft['incomeSource'] | undefined {
+	const value = normalized(text);
+	if (/(sueldo|salario|paycheck|salary)/.test(value)) return 'salary';
+	if (/(venta|vend[ií]|sold|sale)/.test(value)) return 'sales';
+	if (/(devolucion|reembolso|refund)/.test(value)) return 'refund';
+	if (/(prestamo|loan)/.test(value)) return 'loan';
+	if (/(cliente|client)/.test(value)) return 'client';
+	if (/(regalo|propina|me dio|was given|gift)/.test(value)) return 'gift';
+	return locale === 'es-PE' ? 'other' : 'other';
 }
 
 function dateForText(text: string, defaultDate: string, locale: ParserLocale): string {
@@ -205,7 +278,7 @@ function deferredItemDetail(before: string): string | null {
 export function parseSpeechBatch(
 	text: string,
 	categories: Category[] = defaultCategories,
-	options: { date: string; locale?: ParserLocale } = { date: formatDateOnly(new Date()) }
+	options: { date: string; locale?: ParserLocale; rules?: PersonalClassificationRule[]; regionalPacks?: RegionalPackId[] } = { date: formatDateOnly(new Date()) }
 ): SpeechTransactionDraft[] {
 	const locale = options.locale ?? 'es-PE';
 	const parsedText = replaceSpokenAmounts(text, locale);
@@ -230,20 +303,41 @@ export function parseSpeechBatch(
 		const inheritedType = drafts.at(-1)?.type;
 		const type = action ?? inheritedType ?? 'expense';
 		const deferredDetail = deferredItemDetail(before);
-		const categoryCode = categoryCodeForText(after, type, locale) ?? categoryCodeForText(deferredDetail ?? before, type, locale) ?? 'uncategorized';
+		const detail = deferredDetail ?? noteForSegment(after, parsedText);
+		const learned = findLearnedRule(detail, locale, options.rules ?? []);
+		const resolvedType = learned?.type ?? type;
+		const detectedCategory = categoryMatchForText(after, type, locale) ?? categoryMatchForText(deferredDetail ?? before, type, locale) ?? regionalCategoryMatch(`${before} ${after}`, options.regionalPacks ?? ['pe']);
+		const categoryCode = learned
+			? categories.find((category) => category.id === learned.categoryId)?.code ?? 'uncategorized'
+			: detectedCategory?.code ?? 'uncategorized';
+		const merchant = merchantForText(deferredDetail ?? after, locale);
+		const counterparty = resolvedType === 'income' ? counterpartyForText(`${before} ${after}`, locale) : undefined;
+		const explanation = [
+			...(learned ? [`Regla personal: “${learned.phrase}”`] : []),
+			...(action ? [`Detecté una acción de ${type === 'income' ? 'ingreso' : 'gasto'}`] : []),
+			...(detectedCategory && !learned ? [`${categoryCode}, porque detecté “${detectedCategory.keyword}”`] : []),
+			...(merchant ? [`Comercio/lugar detectado: ${merchant}`] : []),
+			...(counterparty ? [`Contraparte detectada: ${counterparty}`] : [])
+		];
 		const reviewReasons: SpeechReviewReason[] = [
-			...(action || inheritedType ? [] : ['type' as const]),
+			...(learned || action || inheritedType ? [] : ['type' as const]),
 			...(categoryCode === 'uncategorized' ? ['category' as const] : [])
 		];
 		drafts.push({
 			id: `speech-${drafts.length}`,
 			amount,
 			categoryCode,
-			categoryId: categoryIdForCode(categories, categoryCode, type),
-			type,
-			note: deferredDetail ?? noteForSegment(after, parsedText),
+			categoryId: learned?.categoryId ?? categoryIdForCode(categories, categoryCode, resolvedType),
+			type: resolvedType,
+			note: detail,
 			date: dateForText(text, options.date, locale),
-			reviewReasons
+			reviewReasons,
+			merchant,
+			location: merchant,
+			counterparty,
+			incomeSource: resolvedType === 'income' ? incomeSourceForText(`${before} ${after}`, locale) : undefined,
+			subcategory: subcategoryForText(`${before} ${after}`, categoryCode),
+			explanation
 		});
 		previousAcceptedEnd = end;
 	}

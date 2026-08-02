@@ -16,6 +16,12 @@
 	let toAccountId = $state(financeStore.accounts[1]?.id || 'default-cash');
 	let toAmount = $state('');
 	let note = $state('');
+	let subcategory = $state('');
+	let merchant = $state('');
+	let location = $state('');
+	let counterparty = $state('');
+	let incomeSource = $state<'salary' | 'sales' | 'gift' | 'refund' | 'loan' | 'client' | 'other'>('other');
+	let receipt = $state<{ name: string; mimeType: string; dataUrl: string } | undefined>();
 	let txDate = $state(todayInTimeZone(financeStore.settings.timeZone)); // YYYY-MM-DD, por defecto hoy
 	let isRecording = $state(false);
 	let activeRecognition = $state<any>(null);
@@ -25,6 +31,8 @@
 	let voiceOperationId = $state<string | null>(null);
 	let isConfirmingVoiceBatch = $state(false);
 	let savedVoiceBatchCount = $state(0);
+	let voiceGroupLabel = $state('');
+	let allowVoiceDuplicates = $state(false);
 	let selectedAccount = $derived(financeStore.accounts.find((account) => account.id === accountId));
 	let selectedDestinationAccount = $derived(financeStore.accounts.find((account) => account.id === toAccountId));
 	let maxTransactionDate = $derived(todayInTimeZone(financeStore.settings.timeZone));
@@ -111,6 +119,12 @@
 			toAccountId: type === 'transfer' ? toAccountId : undefined,
 			toAmount: type === 'transfer' && toAmount ? evaluateMath(toAmount) ?? undefined : undefined,
 			note,
+			subcategory: subcategory.trim() || undefined,
+			merchant: merchant.trim() || undefined,
+			location: location.trim() || undefined,
+			counterparty: counterparty.trim() || undefined,
+			incomeSource: type === 'income' ? incomeSource : undefined,
+			receipt,
 			type
 		};
 
@@ -146,6 +160,11 @@
 		// Reset fields
 		amount = '';
 		note = '';
+		subcategory = '';
+		merchant = '';
+		location = '';
+		counterparty = '';
+		receipt = undefined;
 		dictationResult = '';
 		txDate = todayInTimeZone(financeStore.settings.timeZone);
 	}
@@ -168,7 +187,7 @@
 	}
 
 	function processTranscript() {
-		const nextDrafts = parseSpeechBatch(transcript, financeStore.categories, { date: todayInTimeZone(financeStore.settings.timeZone), locale: financeStore.settings.locale });
+		const nextDrafts = parseSpeechBatch(transcript, financeStore.categories, { date: todayInTimeZone(financeStore.settings.timeZone), locale: financeStore.settings.locale, rules: financeStore.settings.classificationRules, regionalPacks: financeStore.settings.regionalPacks });
 		if (!nextDrafts.length) {
 			showToastMsg('No identifiqué montos en el dictado. Puedes corregir el texto e intentarlo otra vez.', 'error');
 			return;
@@ -176,6 +195,7 @@
 		voiceDrafts = nextDrafts;
 		voiceOperationId = crypto.randomUUID();
 		savedVoiceBatchCount = 0;
+		allowVoiceDuplicates = false;
 		showToastMsg(`${nextDrafts.length} movimiento${nextDrafts.length === 1 ? '' : 's'} listo${nextDrafts.length === 1 ? '' : 's'} para revisar`, 'info');
 	}
 
@@ -202,6 +222,8 @@
 	function cancelVoiceReview() {
 		voiceDrafts = [];
 		voiceOperationId = null;
+		voiceGroupLabel = '';
+		allowVoiceDuplicates = false;
 	}
 
 	function isValidVoiceDate(value: string): boolean {
@@ -220,6 +242,7 @@
 			if (voiceDrafts.some((draft) => !Number.isFinite(Number(draft.amount)) || Number(draft.amount) <= 0 || !isValidVoiceDate(draft.date) || !categories.some((category) => category.id === draft.categoryId && category.type === draft.type))) {
 				throw new Error('Revisa monto, categoría y fecha de cada movimiento.');
 			}
+			const groupId = voiceGroupLabel.trim() && voiceDrafts.length > 1 ? crypto.randomUUID() : undefined;
 			const batch: Transaction[] = voiceDrafts.map((draft) => ({
 				id: crypto.randomUUID(),
 				date: dateTimeFromDateOnly(draft.date, financeStore.settings.timeZone),
@@ -227,12 +250,28 @@
 				categoryId: draft.categoryId,
 				accountId,
 				note: draft.note.trim() || undefined,
+				subcategory: draft.subcategory,
+				merchant: draft.merchant?.trim() || undefined,
+				location: draft.location?.trim() || undefined,
+				counterparty: draft.counterparty?.trim() || undefined,
+				incomeSource: draft.incomeSource,
+				groupId,
+				groupLabel: groupId ? voiceGroupLabel.trim() : undefined,
 				type: draft.type
 			}));
+			const duplicates = batch.filter((candidate) => financeStore.transactions.some((existing) => existing.accountId === candidate.accountId && existing.type === candidate.type && existing.amount === candidate.amount && existing.date.slice(0, 10) === candidate.date.slice(0, 10) && ((existing.merchant && candidate.merchant && existing.merchant.toLowerCase() === candidate.merchant.toLowerCase()) || (!existing.merchant && !candidate.merchant && existing.note?.trim().toLowerCase() === candidate.note?.trim().toLowerCase()))));
+			if (duplicates.length && !allowVoiceDuplicates) {
+				allowVoiceDuplicates = true;
+				throw new Error(`Detecté ${duplicates.length} posible${duplicates.length === 1 ? '' : 's'} duplicado${duplicates.length === 1 ? '' : 's'}. Confirma otra vez si deseas guardarlo.`);
+			}
 			if (!financeStore.addTransactionBatch(batch, voiceOperationId)) throw new Error('No se pudo guardar el lote. Revisa los movimientos antes de confirmar.');
+			for (const draft of voiceDrafts.filter((item) => item.learnRule && item.note.trim())) {
+				financeStore.learnClassificationRule(draft.note, draft.categoryId, draft.type, financeStore.settings.locale);
+			}
 			savedVoiceBatchCount = batch.length;
 			voiceDrafts = [];
 			voiceOperationId = null;
+			voiceGroupLabel = '';
 			transcript = '';
 			vibrate(20);
 			showToastMsg(`${batch.length} movimiento${batch.length === 1 ? '' : 's'} guardado${batch.length === 1 ? '' : 's'}`, 'success');
@@ -241,6 +280,15 @@
 		} finally {
 			isConfirmingVoiceBatch = false;
 		}
+	}
+
+	function loadReceipt(event: Event) {
+		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+		if (!file) return;
+		if (file.size > 1_400_000) { showToastMsg('El comprobante debe pesar menos de 1.4 MB.', 'error'); return; }
+		const reader = new FileReader();
+		reader.onload = () => { receipt = { name: file.name, mimeType: file.type || 'application/octet-stream', dataUrl: String(reader.result) }; };
+		reader.readAsDataURL(file);
 	}
 
 	function undoVoiceBatch() {
@@ -350,6 +398,11 @@
 					{/each}
 				</select>
 			</div>
+			{#if voiceDrafts.length > 1}
+				<label for="voice-group" class="mb-4 block text-xs font-medium" style="color: var(--color-text-secondary);">Agrupar como una visita (opcional)
+					<input id="voice-group" bind:value={voiceGroupLabel} placeholder="Ej. Panadería La Mechita" class="mt-1 w-full rounded-xl p-3 text-sm" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+				</label>
+			{/if}
 
 			<div class="space-y-3">
 				{#each voiceDrafts as draft (draft.id)}
@@ -360,6 +413,9 @@
 						</div>
 						{#if draft.reviewReasons.length}
 							<p class="mb-3 rounded-lg p-2 text-xs font-medium" style="background-color: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface)); color: var(--color-text);">Confirma {draft.reviewReasons.includes('type') ? 'el tipo' : ''}{draft.reviewReasons.includes('type') && draft.reviewReasons.includes('category') ? ' y ' : ''}{draft.reviewReasons.includes('category') ? 'la categoría' : ''}: la transcripción no pudo inferirlo con seguridad.</p>
+						{/if}
+						{#if draft.explanation.length}
+							<p class="mb-3 rounded-lg p-2 text-xs" style="background-color: color-mix(in srgb, var(--color-primary) 9%, var(--color-surface)); color: var(--color-text-secondary);">{draft.explanation.join(' · ')}</p>
 						{/if}
 						<div class="grid grid-cols-2 gap-3">
 							<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Tipo
@@ -381,8 +437,18 @@
 							<label class="col-span-2 text-xs font-medium" style="color: var(--color-text-secondary);">Detalle
 								<input type="text" value={draft.note} oninput={(event) => updateVoiceDraft(draft.id, { note: (event.currentTarget as HTMLInputElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
 							</label>
+							<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Comercio / lugar
+								<input type="text" value={draft.merchant ?? ''} oninput={(event) => updateVoiceDraft(draft.id, { merchant: (event.currentTarget as HTMLInputElement).value, location: (event.currentTarget as HTMLInputElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+							</label>
+							<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Persona / fuente
+								<input type="text" value={draft.counterparty ?? ''} oninput={(event) => updateVoiceDraft(draft.id, { counterparty: (event.currentTarget as HTMLInputElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+							</label>
 							<label class="col-span-2 text-xs font-medium" style="color: var(--color-text-secondary);">Fecha
 								<input type="date" value={draft.date} max={maxTransactionDate} onchange={(event) => updateVoiceDraft(draft.id, { date: (event.currentTarget as HTMLInputElement).value })} class="mt-1 w-full rounded-lg p-2.5 text-sm" style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);" />
+							</label>
+							<label class="col-span-2 flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
+								<input type="checkbox" checked={draft.learnRule ?? false} onchange={(event) => updateVoiceDraft(draft.id, { learnRule: (event.currentTarget as HTMLInputElement).checked })} />
+								Recordar “{draft.note || 'este detalle'}” para futuras clasificaciones (solo en este dispositivo)
 							</label>
 						</div>
 					</div>
@@ -578,6 +644,30 @@
 					style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"
 				/>
 			</div>
+
+			<div class="grid grid-cols-2 gap-3">
+				<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Comercio
+					<input bind:value={merchant} placeholder="Cineplanet" class="mt-1 w-full rounded-xl p-3 text-sm" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+				</label>
+				<label class="text-xs font-medium" style="color: var(--color-text-secondary);">Lugar
+					<input bind:value={location} placeholder="La Mechita" class="mt-1 w-full rounded-xl p-3 text-sm" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+				</label>
+				<label class="col-span-2 text-xs font-medium" style="color: var(--color-text-secondary);">Persona / contraparte
+					<input bind:value={counterparty} placeholder="Abuela, empresa o cliente" class="mt-1 w-full rounded-xl p-3 text-sm" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+				</label>
+			</div>
+			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Subcategoría (opcional)
+				<input bind:value={subcategory} placeholder="Ej. Panadería, restaurante o supermercado" class="mt-1 w-full rounded-xl p-3 text-sm" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);" />
+			</label>
+			{#if type === 'income'}
+				<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Fuente de ingreso
+					<select bind:value={incomeSource} class="mt-1 w-full rounded-xl p-3 text-sm" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);"><option value="salary">Sueldo</option><option value="sales">Ventas</option><option value="gift">Regalo / propina</option><option value="refund">Devolución</option><option value="loan">Préstamo recibido</option><option value="client">Cliente</option><option value="other">Otro</option></select>
+				</label>
+			{/if}
+			<label class="block text-xs font-medium" style="color: var(--color-text-secondary);">Recibo o comprobante (opcional, solo local)
+				<input type="file" accept="image/*,application/pdf" onchange={loadReceipt} class="mt-1 block w-full text-sm" />
+				{#if receipt}<span class="mt-1 block" style="color: var(--color-success);">Adjunto: {receipt.name}</span>{/if}
+			</label>
 
 			<!-- Fecha -->
 			<div>

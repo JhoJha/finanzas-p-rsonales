@@ -35,7 +35,7 @@ describe('parseSpeechBatch', () => {
 
 	it('marca las categorías desconocidas para una confirmación explícita', () => {
 		const [draft] = parseSpeechBatch('Gasté 100 en medicina', defaultCategories, { date: '2026-08-01' });
-		expect(draft).toMatchObject({ categoryCode: 'uncategorized', categoryId: '7', reviewReasons: ['category'] });
+		expect(draft).toMatchObject({ categoryCode: 'health', categoryId: '9', reviewReasons: [] });
 	});
 
 	it('reconoce vocabulario inglés cuando el locale es en-US', () => {
@@ -79,5 +79,16 @@ describe('parseSpeechBatch', () => {
 		const [amazon] = parseSpeechBatch('Pagué 25 soles en Amazon', defaultCategories, { date: '2026-08-01' });
 		expect(netflix).toMatchObject({ categoryCode: 'subscriptions', categoryId: '8', reviewReasons: [] });
 		expect(amazon).toMatchObject({ categoryCode: 'uncategorized', categoryId: '7', reviewReasons: ['category'] });
+	});
+
+	it('prioriza una regla personal confirmada dos veces sin enviarla fuera del dispositivo', () => {
+		const [draft] = parseSpeechBatch('Gasté 2 soles en Cuates', defaultCategories, { date: '2026-08-01', rules: [{ id: 'rule-cuates', phrase: 'Cuates', categoryId: '1', type: 'expense', locale: 'es-PE', confidence: 2, enabled: true, createdAt: '2026-08-01T12:00:00.000Z' }] });
+		expect(draft).toMatchObject({ categoryId: '1', categoryCode: 'food', reviewReasons: [] });
+	});
+
+	it('extrae contraparte, fuente y explicación de un ingreso', () => {
+		const [draft] = parseSpeechBatch('Mi abuela me dio 5 soles de propina', defaultCategories, { date: '2026-08-01' });
+		expect(draft).toMatchObject({ type: 'income', categoryId: '6', counterparty: 'Abuela', incomeSource: 'gift' });
+		expect(draft.explanation.length).toBeGreaterThan(0);
 	});
 });

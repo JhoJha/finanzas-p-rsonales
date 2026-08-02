@@ -4,7 +4,7 @@ import { loadFinanceSnapshot, saveFinanceSnapshot, type FinanceStateSnapshot } f
 import { categoryCodeForLegacyId } from '$lib/domain/category-codes';
 import { DEFAULT_LOCALE, DEFAULT_TIME_ZONE } from '$lib/i18n';
 
-export const CURRENT_FINANCE_STATE_VERSION = 9;
+export const CURRENT_FINANCE_STATE_VERSION = 12;
 
 export interface FinanceState {
 	version: number;
@@ -87,6 +87,19 @@ export function migrateFinanceState(state: FinanceState): FinanceState {
 				: [...migrated.categories, subscriptions]
 		};
 	}
+	if (migrated.version < 10) migrated = { ...migrated, version: 10, settings: { ...migrated.settings, classificationRules: migrated.settings.classificationRules ?? [] } };
+	if (migrated.version < 11) {
+		const newCodes = new Set(['health', 'personal_care', 'clothing', 'gifts_family', 'pets', 'taxes', 'fees', 'business']);
+		migrated = {
+			...migrated,
+			version: 11,
+			categories: [
+				...migrated.categories,
+				...defaultCategories.filter((candidate) => newCodes.has(candidate.code ?? '') && !migrated.categories.some((category) => category.id === candidate.id || category.code === candidate.code))
+			]
+		};
+	}
+	if (migrated.version < 12) migrated = { ...migrated, version: 12, settings: { ...migrated.settings, regionalPacks: migrated.settings.regionalPacks ?? ['pe'] } };
 	return migrated;
 }
 

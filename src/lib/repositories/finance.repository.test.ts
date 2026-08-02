@@ -3,11 +3,11 @@ import { CorruptFinanceStateError, FinanceRepository, FutureFinanceStateError, m
 import { createFinanceState, createSettings } from '$lib/test/factories';
 
 describe('FinanceRepository migrations', () => {
-	it('migrates v4, v5 and v6 snapshots to v9 while preserving state', () => {
+	it('migrates v4, v5 and v6 snapshots to v12 while preserving state', () => {
 		const state = createFinanceState({ version: 4 });
-		expect(migrateFinanceState(state)).toMatchObject({ version: 9, accounts: state.accounts, settings: state.settings });
-		expect(migrateFinanceState({ ...state, version: 5 }).version).toBe(9);
-		expect(migrateFinanceState({ ...state, version: 6 }).version).toBe(9);
+		expect(migrateFinanceState(state)).toMatchObject({ version: 12, accounts: state.accounts, settings: state.settings });
+		expect(migrateFinanceState({ ...state, version: 5 }).version).toBe(12);
+		expect(migrateFinanceState({ ...state, version: 6 }).version).toBe(12);
 	});
 
 	it('adds canonical metadata without changing legacy category IDs or transactions', () => {
@@ -18,17 +18,18 @@ describe('FinanceRepository migrations', () => {
 		});
 
 		const migrated = migrateFinanceState(state);
-		expect(migrated.categories).toEqual([
+		expect(migrated.categories).toEqual(expect.arrayContaining([
 			{ id: '1', code: 'food', name: 'Alimentos personalizados', icon: 'tag', color: 'bg-orange-500', type: 'expense' },
 			{ id: '7', code: 'uncategorized', name: 'Por clasificar', icon: 'circle-help', color: 'bg-slate-500', type: 'expense' },
 			{ id: '8', code: 'subscriptions', name: 'Suscripciones', icon: 'repeat-2', color: 'bg-indigo-500', type: 'expense' }
-		]);
+		]));
+		expect(migrated.categories.map((category) => category.code)).toEqual(expect.arrayContaining(['health', 'personal_care', 'clothing', 'gifts_family', 'pets', 'taxes', 'fees', 'business']));
 		expect(migrated.settings).toMatchObject({ locale: 'es-PE', timeZone: 'America/Lima' });
 	});
 
 	it('rejects a future version before normalization can discard unknown fields', () => {
 		const repository = new FinanceRepository();
-		const future = { ...createFinanceState({ version: 10 }), futureOnlyField: { preservedByNewerApp: true } };
+		const future = { ...createFinanceState({ version: 13 }), futureOnlyField: { preservedByNewerApp: true } };
 		expect(() => repository.deserialize(JSON.stringify(future), createSettings())).toThrow(FutureFinanceStateError);
 		expect(() => migrateFinanceState(future)).toThrow(FutureFinanceStateError);
 	});
@@ -40,7 +41,7 @@ describe('FinanceRepository migrations', () => {
 
 	it('serializes every new backup with the current state version', () => {
 		const repository = new FinanceRepository();
-		expect(JSON.parse(repository.serialize(createFinanceState({ version: 4 })))).toMatchObject({ version: 9 });
+		expect(JSON.parse(repository.serialize(createFinanceState({ version: 4 })))).toMatchObject({ version: 12 });
 	});
 
 	it('propagates a consolidated-storage read failure instead of falling back to legacy', async () => {

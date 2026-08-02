@@ -505,7 +505,7 @@ export class FinanceStoreFacade {
 			return false;
 		}
 		this.categoriesStore.removeCategory(id);
-		this.settingsStore.updateSettings({ importRules: this.settings.importRules.filter((rule) => rule.categoryId !== id) });
+		this.settingsStore.updateSettings({ importRules: this.settings.importRules.filter((rule) => rule.categoryId !== id), classificationRules: this.settings.classificationRules.filter((rule) => rule.categoryId !== id) });
 		this.scheduleAutomaticBackup();
 		return true;
 		return true;
@@ -979,6 +979,21 @@ export class FinanceStoreFacade {
 		}
 	}
 	// === Settings ===
+	learnClassificationRule(phrase: string, categoryId: string, type: 'expense' | 'income', locale: 'es-PE' | 'en-US', confirmed = false): boolean {
+		const value = phrase.trim();
+		if (value.length < 2 || !this.categories.some((category) => category.id === categoryId && category.type === type)) return false;
+		const existing = this.settings.classificationRules.find((rule) => rule.phrase.toLocaleLowerCase() === value.toLocaleLowerCase() && rule.categoryId === categoryId && rule.type === type && rule.locale === locale);
+		const rules = existing
+			? this.settings.classificationRules.map((rule) => rule.id === existing.id ? { ...rule, confidence: Math.min(10, rule.confidence + 1) } : rule)
+			: [...this.settings.classificationRules, { id: crypto.randomUUID(), phrase: value, categoryId, type, locale, confidence: confirmed ? 2 : 1, enabled: true, createdAt: new Date().toISOString() }];
+		return this.updateSettings({ classificationRules: rules });
+	}
+
+	removeClassificationRule(id: string): boolean {
+		if (!this.settings.classificationRules.some((rule) => rule.id === id)) return false;
+		return this.updateSettings({ classificationRules: this.settings.classificationRules.filter((rule) => rule.id !== id) });
+	}
+
 	updateSettings(newData: Partial<Settings>) {
 		const requestedBaseCurrency = newData.baseCurrency?.trim().toUpperCase() ?? this.settings.baseCurrency;
 		const isChangingBaseCurrency = requestedBaseCurrency !== this.settings.baseCurrency;

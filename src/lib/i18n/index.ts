@@ -32,11 +32,11 @@ const messages: Record<SupportedLocale, Record<MessageKey, string>> = {
 const categoryLabels: Record<SupportedLocale, Partial<Record<string, string>>> = {
 	'es-PE': {
 		food: 'Alimentación', transport: 'Transporte', housing: 'Vivienda', education: 'Educación',
-		entertainment: 'Ocio', subscriptions: 'Suscripciones', uncategorized: 'Por clasificar', income: 'Trabajo / Ingresos', debt_payment: 'Pago de deuda', savings: 'Ahorro / Meta'
+		entertainment: 'Ocio', subscriptions: 'Suscripciones', health: 'Salud', personal_care: 'Cuidado personal', clothing: 'Ropa', gifts_family: 'Regalos y familia', pets: 'Mascotas', taxes: 'Impuestos', fees: 'Comisiones', business: 'Trabajo / negocio', uncategorized: 'Por clasificar', income: 'Trabajo / Ingresos', debt_payment: 'Pago de deuda', savings: 'Ahorro / Meta'
 	},
 	'en-US': {
 		food: 'Food', transport: 'Transport', housing: 'Housing', education: 'Education',
-		entertainment: 'Entertainment', subscriptions: 'Subscriptions', uncategorized: 'Uncategorized', income: 'Work / Income', debt_payment: 'Debt payment', savings: 'Savings / Goal'
+		entertainment: 'Entertainment', subscriptions: 'Subscriptions', health: 'Health', personal_care: 'Personal care', clothing: 'Clothing', gifts_family: 'Gifts & family', pets: 'Pets', taxes: 'Taxes', fees: 'Fees', business: 'Work / business', uncategorized: 'Uncategorized', income: 'Work / Income', debt_payment: 'Debt payment', savings: 'Savings / Goal'
 	}
 };
 

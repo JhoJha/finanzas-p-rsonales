@@ -13,6 +13,8 @@ export class SettingsStore {
 	onboardingCompleted: false,
 	savedFilters: [],
 	importRules: [],
+	classificationRules: [],
+	regionalPacks: ['pe'],
 		profile: {
 			name: '',
 			avatar: '👋',

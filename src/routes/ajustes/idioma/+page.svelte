@@ -3,12 +3,14 @@
 	import { toastStore } from '$lib/toast.svelte';
 	import { ArrowLeft, Languages, Save } from '@lucide/svelte';
 	import { SUPPORTED_LOCALES, TIME_ZONE_OPTIONS, categoryDisplayName, resolveLocale } from '$lib/i18n';
+	import { REGIONAL_PACKS, REGIONAL_PACK_IDS, type RegionalPackId } from '$lib/domain/regional-packs';
 
 	let locale = $state(financeStore.settings.locale);
 	let timeZone = $state(financeStore.settings.timeZone);
+	let regionalPacks = $state<RegionalPackId[]>(financeStore.settings.regionalPacks);
 
 	function savePreferences() {
-		if (!financeStore.updateSettings({ locale: resolveLocale(locale), timeZone })) return;
+		if (!financeStore.updateSettings({ locale: resolveLocale(locale), timeZone, regionalPacks })) return;
 		toastStore.add('Idioma y zona horaria guardados.', 'success');
 	}
 </script>
@@ -25,6 +27,12 @@
 			<select id="locale" bind:value={locale} class="w-full rounded-xl p-3 outline-none" style="background-color: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
 				{#each SUPPORTED_LOCALES as option}<option value={option}>{option === 'es-PE' ? 'Español (Perú)' : 'English (United States)'}</option>{/each}
 			</select>
+		</div>
+
+		<div>
+			<p class="mb-2 text-sm font-semibold" style="color: var(--color-text);">Paquetes regionales del parser</p>
+			<p class="mb-2 text-xs" style="color: var(--color-text-secondary);">Añaden expresiones locales; las reglas personales siempre tienen prioridad.</p>
+			<div class="grid grid-cols-2 gap-2">{#each REGIONAL_PACK_IDS as pack}<label class="flex items-center gap-2 rounded-lg p-2 text-sm" style="background-color: var(--color-bg); color: var(--color-text);"><input type="checkbox" checked={regionalPacks.includes(pack)} onchange={(event) => regionalPacks = (event.currentTarget as HTMLInputElement).checked ? [...regionalPacks, pack] : regionalPacks.filter((item) => item !== pack)} />{REGIONAL_PACKS[pack].label}</label>{/each}</div>
 		</div>
 
 		<div>

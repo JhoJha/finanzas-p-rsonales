@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CATEGORY_CODES } from '$lib/domain/category-codes';
+import { REGIONAL_PACK_IDS } from '$lib/domain/regional-packs';
 import { isValidTimeZone } from '$lib/domain/time-zone';
 
 /** IDs de categorías internas del sistema (no editables por el usuario) */
@@ -81,6 +82,17 @@ export const SettingsSchema = z.object({
 		merchant: z.string().trim().min(1).max(120),
 		categoryId: EntityId
 	})).max(100).default([]),
+	classificationRules: z.array(z.object({
+		id: EntityId,
+		phrase: z.string().trim().min(2).max(120),
+		categoryId: EntityId,
+		type: z.enum(['expense', 'income']),
+		locale: z.enum(['es-PE', 'en-US']).optional(),
+		confidence: z.number().int().min(1).max(10).default(1),
+		enabled: z.boolean().default(true),
+		createdAt: IsoDateTime
+	})).max(200).default([]),
+	regionalPacks: z.array(z.enum(REGIONAL_PACK_IDS)).max(4).default(['pe']),
 	profile: z.object({
 		name: z.string().default(''),
 		avatar: z.string().default('👋'),
@@ -101,6 +113,14 @@ export const TransactionSchema = z.object({
 	toAmount: PositiveAmount.optional(),
 	toExchangeRate: z.number().finite().positive().optional(),
 	note: z.string().optional(),
+	subcategory: z.string().trim().min(1).max(80).optional(),
+	merchant: z.string().trim().min(1).max(120).optional(),
+	location: z.string().trim().min(1).max(120).optional(),
+	counterparty: z.string().trim().min(1).max(120).optional(),
+	incomeSource: z.enum(['salary', 'sales', 'gift', 'refund', 'loan', 'client', 'other']).optional(),
+	groupId: EntityId.optional(),
+	groupLabel: z.string().trim().min(1).max(120).optional(),
+	receipt: z.object({ name: z.string().trim().min(1).max(180), mimeType: z.string().trim().min(1).max(100), dataUrl: z.string().max(2_000_000) }).optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
 	tags: z.array(z.string()).optional(),
 	// Se capturan al crear el movimiento para que los reportes históricos no
@@ -137,6 +157,13 @@ export const RecurringTransactionSchema = z.object({
 	toAccountId: EntityId.optional(),
 	toAmount: PositiveAmount.optional(),
 	note: z.string().optional(),
+	merchant: z.string().trim().min(1).max(120).optional(),
+	location: z.string().trim().min(1).max(120).optional(),
+	counterparty: z.string().trim().min(1).max(120).optional(),
+	incomeSource: z.enum(['salary', 'sales', 'gift', 'refund', 'loan', 'client', 'other']).optional(),
+	groupId: EntityId.optional(),
+	groupLabel: z.string().trim().min(1).max(120).optional(),
+	receipt: z.object({ name: z.string().trim().min(1).max(180), mimeType: z.string().trim().min(1).max(100), dataUrl: z.string().max(2_000_000) }).optional(),
 	// Permite que el pronóstico reconozca una cuota de deuda ya programada.
 	debtId: EntityId.optional(),
 	type: z.enum(['expense', 'income', 'transfer']),
@@ -195,6 +222,7 @@ export type Debt = z.infer<typeof DebtSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type FinanceBackup = z.infer<typeof BackupSchema>;
 export type ImportRule = z.infer<typeof SettingsSchema>['importRules'][number];
+export type PersonalClassificationRule = z.infer<typeof SettingsSchema>['classificationRules'][number];
 export type ImportRow = z.infer<typeof ImportRowSchema>;
 
 export const defaultCategories: Category[] = [
@@ -204,6 +232,14 @@ export const defaultCategories: Category[] = [
 	{ id: '4', code: 'education', name: 'Educación', icon: 'graduation-cap', color: 'bg-purple-500', type: 'expense' },
 	{ id: '5', code: 'entertainment', name: 'Ocio', icon: 'gamepad-2', color: 'bg-pink-500', type: 'expense' },
 	{ id: '8', code: 'subscriptions', name: 'Suscripciones', icon: 'repeat-2', color: 'bg-indigo-500', type: 'expense' },
+	{ id: '9', code: 'health', name: 'Salud', icon: 'heart-pulse', color: 'bg-rose-500', type: 'expense' },
+	{ id: '10', code: 'personal_care', name: 'Cuidado personal', icon: 'sparkles', color: 'bg-fuchsia-500', type: 'expense' },
+	{ id: '11', code: 'clothing', name: 'Ropa', icon: 'shirt', color: 'bg-sky-500', type: 'expense' },
+	{ id: '12', code: 'gifts_family', name: 'Regalos y familia', icon: 'gift', color: 'bg-violet-500', type: 'expense' },
+	{ id: '13', code: 'pets', name: 'Mascotas', icon: 'paw-print', color: 'bg-amber-500', type: 'expense' },
+	{ id: '14', code: 'taxes', name: 'Impuestos', icon: 'landmark', color: 'bg-stone-500', type: 'expense' },
+	{ id: '15', code: 'fees', name: 'Comisiones', icon: 'receipt-text', color: 'bg-zinc-500', type: 'expense' },
+	{ id: '16', code: 'business', name: 'Trabajo / negocio', icon: 'briefcase-business', color: 'bg-cyan-600', type: 'expense' },
 	{ id: '7', code: 'uncategorized', name: 'Por clasificar', icon: 'circle-help', color: 'bg-slate-500', type: 'expense' },
 	{ id: '6', code: 'income', name: 'Trabajo / Ingresos', icon: 'briefcase', color: 'bg-yellow-500', type: 'income' },
 	// Categorías internas del sistema — no se muestran al usuario en los selectores
