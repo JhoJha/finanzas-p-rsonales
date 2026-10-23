@@ -47,7 +47,7 @@ npm test           # vitest: 56/56 pasan
 
 ## Qué no funciona / quedó pendiente
 
-- **Los tests e2e (Playwright) fallan en CI.** Por ejemplo, "guarda una transferencia con importe de destino en otra moneda" no encuentra un elemento en la página. Las últimas corridas de GitHub Actions están en rojo por esto. Los tests unitarios, `check` y `build` pasan en CI.
+- **1 de 9 tests e2e (Playwright) falla en CI:** "guarda una transferencia con importe de destino en otra moneda". La transferencia se guarda, pero el inicio no muestra el saldo `USD 20.00`. No sé si es un bug del flujo multimoneda o un test desactualizado por un cambio de formato. Las otras 8 pruebas e2e, los tests unitarios, `check` y `build` pasan, pero la corrida de GitHub Actions queda en rojo por este test.
 - **`npm run build` falla en Windows** en el paso de `adapter-vercel`, porque necesita crear symlinks (activa el Modo Desarrollador de Windows). La compilación en sí funciona, y en Linux/CI el build completo pasa.
 - **IA y cuentas remotas sin terminar.** Las rutas `/api/v1/*` y los adaptadores de Supabase y DeepSeek existen, pero las capacidades siguen apagadas hasta tener un almacenamiento de cuotas, que no se implementó.
 - No implementado: orquestador de intenciones o chatbot, respaldo cifrado en Google Drive y sincronización entre dispositivos.
