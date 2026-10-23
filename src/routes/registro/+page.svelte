@@ -125,7 +125,7 @@
 			categoryId: type === 'transfer' ? 'transfer' : categoryId,
 			accountId,
 			toAccountId: type === 'transfer' ? toAccountId : undefined,
-			toAmount: type === 'transfer' && toAmount ? evaluateMath(toAmount) ?? undefined : undefined,
+			toAmount: type === 'transfer' && toAmount ? evaluateMath(String(toAmount)) ?? undefined : undefined,
 			note,
 			subcategory: subcategory.trim() || undefined,
 			merchant: merchant.trim() || undefined,
