@@ -72,3 +72,7 @@ SvelteKit 2 · Svelte 5 · TypeScript · Tailwind CSS v4 · IndexedDB (`idb-keyv
 - Configura una tasa de cambio antes de usar una cuenta en otra moneda que no sea la base.
 - La moneda base se bloquea cuando ya existen datos.
 - Para usar los servicios remotos opcionales, copia `.env.example` a `.env`. Nunca expongas `DEEPSEEK_API_KEY` con el prefijo `VITE_`. Los detalles están en [`docs/phase-2-api.md`](docs/phase-2-api.md).
+
+## Licencia
+
+© 2026 Jhon Villegas — [AGPL-3.0](LICENSE). Para uso comercial bajo otros términos, contáctame.
