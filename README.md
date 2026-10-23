@@ -39,15 +39,15 @@ npm ci
 npm run dev        # http://localhost:5173
 npm run check      # svelte-check: 0 errores
 npm test           # vitest: 56/56 pasan
+npm run test:e2e   # Playwright: 9/9 pasan
 ```
 
 - Funciones: cuentas multimoneda y transferencias, presupuestos, metas de ahorro, deudas, recurrentes, suscripciones detectadas, pronóstico de flujo de caja, cierre mensual, patrimonio neto, búsqueda, calendario, importación CSV, respaldo/restauración JSON, PWA offline y bloqueo con PIN local (se guarda solo hash y sal).
-- Verificado: `npm ci`, `check`, `test` y `dev`; todas las páginas principales cargan.
+- Verificado: `npm ci`, `check`, `test`, `test:e2e` y `dev`; todas las páginas principales cargan.
 - La especificación original del producto está en [`docs/especificacion-inicial.pdf`](docs/especificacion-inicial.pdf). Las decisiones de arquitectura están en [`docs/`](docs/).
 
 ## Qué no funciona / quedó pendiente
 
-- **1 de 9 tests e2e (Playwright) falla en CI:** "guarda una transferencia con importe de destino en otra moneda". La transferencia se guarda, pero el inicio no muestra el saldo `USD 20.00`. No sé si es un bug del flujo multimoneda o un test desactualizado por un cambio de formato. Las otras 8 pruebas e2e, los tests unitarios, `check` y `build` pasan, pero la corrida de GitHub Actions queda en rojo por este test.
 - **`npm run build` falla en Windows** en el paso de `adapter-vercel`, porque necesita crear symlinks (activa el Modo Desarrollador de Windows). La compilación en sí funciona, y en Linux/CI el build completo pasa.
 - **IA y cuentas remotas sin terminar.** Las rutas `/api/v1/*` y los adaptadores de Supabase y DeepSeek existen, pero las capacidades siguen apagadas hasta tener un almacenamiento de cuotas, que no se implementó.
 - No implementado: orquestador de intenciones o chatbot, respaldo cifrado en Google Drive y sincronización entre dispositivos.
@@ -60,7 +60,7 @@ npm test           # vitest: 56/56 pasan
 - Diseñar **local-first** obliga a tomarse en serio las migraciones: sin servidor, cada versión de la app tiene que leer bien los datos de todas las anteriores.
 - Un parser de voz con reglas, más una pantalla de revisión, da resultados confiables sin pagar por cada llamada a un LLM. La IA queda como mejora opcional, no como dependencia.
 - Separar "proponer" de "ejecutar" (lotes atómicos con confirmación y deshacer) es lo que hace seguro automatizar el registro de dinero.
-- Tener e2e en CI es valioso solo si se mantienen en verde. Lo dejé roto y perdió su función de alarma.
+- Tener e2e en CI es valioso solo si se mantienen en verde. Un test de transferencias multimoneda estuvo rojo dos meses y lo traté como ruido, pero señalaba un bug real: el campo numérico entregaba un número donde el código esperaba texto, y el monto manual se descartaba en silencio. Un `catch` que devuelve `null` sin avisar escondió el error.
 
 ## Stack
 
