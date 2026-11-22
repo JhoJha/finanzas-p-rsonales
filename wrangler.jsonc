@@ -1,0 +1,10 @@
+{
+	// Despliegue en Cloudflare Workers con recursos estáticos (SvelteKit + adapter-cloudflare).
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "finanzas-personales",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-11-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": { "binding": "ASSETS", "directory": ".svelte-kit/cloudflare" },
+	"observability": { "enabled": true }
+}
